@@ -3,9 +3,7 @@ services:
     image: metacubex/mihomo:latest
     container_name: mihomo
     restart: unless-stopped
-    expose:
-      - "2080"
-      - "2081"
+    network_mode: "host"
     volumes:
       - ./mihomo/config.yaml:/root/.config/mihomo/config.yaml:ro
       - ./mihomo/providers:/root/.config/mihomo/providers
@@ -24,27 +22,11 @@ services:
     init: true
     expose:
       - "9000"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     environment:
       API_URL: "http://cobalt:9000"
-      HTTP_PROXY: "http://mihomo:2080"
-      HTTPS_PROXY: "http://mihomo:2080"
-      NO_PROXY: "localhost,127.0.0.1,::1,cobalt,mihomo,yt-session-generator,host.docker.internal,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12"
+      HTTP_PROXY: "http://172.17.0.1:2080"
+      HTTPS_PROXY: "http://172.17.0.1:2080"
+      NO_PROXY: "localhost,127.0.0.1,::1,cobalt,mihomo,host.docker.internal"
     depends_on:
       mihomo:
         condition: service_healthy
-  torrserver:
-    image: ghcr.io/yourok/torrserver:latest
-    container_name: torrserver
-    restart: unless-stopped
-    ports:
-      - "8090:8090"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    environment:
-      TS_PORT: "8090"
-      HTTP_PROXY: "http://host.docker.internal:2080"
-      HTTPS_PROXY: "http://host.docker.internal:2080"
-    volumes:
-      - ./torrserver_db:/opt/ts/db
