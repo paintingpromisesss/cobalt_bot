@@ -45,8 +45,8 @@ func (s *UserSettingsService) GetByUserID(ctx context.Context, userID int64) (re
 	return out, nil
 }
 
-func (s *UserSettingsService) UpsertByUserID(ctx context.Context, userID int64, in repository.UserSettings) error {
-	settings, err := normalizeAndValidate(in)
+func (s *UserSettingsService) UpsertByUserID(ctx context.Context, userID int64, settings repository.UserSettings) error {
+	settings, err := normalizeAndValidate(settings)
 	if err != nil {
 		return err
 	}
@@ -58,8 +58,8 @@ func (s *UserSettingsService) UpsertByUserID(ctx context.Context, userID int64, 
 	return nil
 }
 
-func normalizeAndValidate(in repository.UserSettings) (repository.UserSettings, error) {
-	s := in
+func normalizeAndValidate(settings repository.UserSettings) (repository.UserSettings, error) {
+	s := settings
 	if s.VideoQuality == "" {
 		s.VideoQuality = "1080"
 	}
@@ -83,7 +83,7 @@ func normalizeAndValidate(in repository.UserSettings) (repository.UserSettings, 
 	}
 	s.SubtitleLang = strings.TrimSpace(s.SubtitleLang)
 
-	if !slices.Contains([]string{"max", "4320", "2160", "1440", "1080", "720", "480", "360", "240", "144"}, s.VideoQuality) {
+	if !slices.Contains([]string{"best", "4320", "2160", "1440", "1080", "720", "480", "360", "240", "144"}, s.VideoQuality) {
 		return repository.UserSettings{}, fmt.Errorf("invalid video quality: %q", s.VideoQuality)
 	}
 	if !slices.Contains([]string{"auto", "audio", "mute"}, s.DownloadMode) {
@@ -92,7 +92,7 @@ func normalizeAndValidate(in repository.UserSettings) (repository.UserSettings, 
 	if !slices.Contains([]string{"best", "mp3", "ogg", "wav", "opus"}, s.AudioFormat) {
 		return repository.UserSettings{}, fmt.Errorf("invalid audio format: %q", s.AudioFormat)
 	}
-	if !slices.Contains([]string{"320", "256", "128", "96", "64", "8"}, s.AudioBitrate) {
+	if !slices.Contains([]string{"best", "320", "256", "128", "96", "64", "8"}, s.AudioBitrate) {
 		return repository.UserSettings{}, fmt.Errorf("invalid audio bitrate: %q", s.AudioBitrate)
 	}
 	if !slices.Contains([]string{"classic", "pretty", "basic", "nerdy"}, s.FilenameStyle) {
