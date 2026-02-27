@@ -1,4 +1,4 @@
-package sqlite
+package storage
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/paintingpromisesss/cobalt_bot/internal/infrastructure/repository"
+	"github.com/paintingpromisesss/cobalt_bot/internal/user_settings"
 )
 
 type UserSettingsRepository struct {
@@ -21,7 +21,7 @@ func NewUserSettingsRepository(db *sql.DB) (*UserSettingsRepository, error) {
 	return &UserSettingsRepository{db: db}, nil
 }
 
-func (r *UserSettingsRepository) GetByUserID(ctx context.Context, userID int64) (repository.UserSettings, bool, error) {
+func (r *UserSettingsRepository) GetByUserID(ctx context.Context, userID int64) (user_settings.Settings, bool, error) {
 	const query = `
 SELECT
   video_quality,
@@ -36,7 +36,7 @@ SELECT
 FROM user_settings
 WHERE user_id = ?;`
 
-	var out repository.UserSettings
+	var out user_settings.Settings
 	var betterAudio int
 	err := r.db.QueryRowContext(ctx, query, userID).Scan(
 		&out.VideoQuality,
@@ -50,17 +50,17 @@ WHERE user_id = ?;`
 		&out.SubtitleLang,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
-		return repository.UserSettings{}, false, nil
+		return user_settings.Settings{}, false, nil
 	}
 	if err != nil {
-		return repository.UserSettings{}, false, fmt.Errorf("select user settings: %w", err)
+		return user_settings.Settings{}, false, fmt.Errorf("select user settings: %w", err)
 	}
 
 	out.YoutubeBetterAudio = betterAudio == 1
 	return out, true, nil
 }
 
-func (r *UserSettingsRepository) UpsertByUserID(ctx context.Context, userID int64, settings repository.UserSettings) error {
+func (r *UserSettingsRepository) UpsertByUserID(ctx context.Context, userID int64, settings user_settings.Settings) error {
 	const query = `
 INSERT INTO user_settings (
   user_id,

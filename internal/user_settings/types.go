@@ -1,8 +1,6 @@
-package repository
+package user_settings
 
-import "context"
-
-type UserSettings struct {
+type Settings struct {
 	VideoQuality          string
 	DownloadMode          string
 	AudioFormat           string
@@ -12,9 +10,4 @@ type UserSettings struct {
 	YoutubeVideoContainer string
 	YoutubeBetterAudio    bool
 	SubtitleLang          string
-}
-
-type UserSettingsRepository interface {
-	GetByUserID(ctx context.Context, userID int64) (UserSettings, bool, error)
-	UpsertByUserID(ctx context.Context, userID int64, settings UserSettings) error
 }

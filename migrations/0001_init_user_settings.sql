@@ -1,12 +1,3 @@
-package sqlite
-
-import (
-	"database/sql"
-	"fmt"
-)
-
-func migrate(db *sql.DB) error {
-	const query = `
 CREATE TABLE IF NOT EXISTS user_settings (
   user_id INTEGER PRIMARY KEY,
   video_quality TEXT NOT NULL DEFAULT '1080',
@@ -19,10 +10,4 @@ CREATE TABLE IF NOT EXISTS user_settings (
   youtube_better_audio INTEGER NOT NULL DEFAULT 0,
   subtitle_lang TEXT NOT NULL DEFAULT '',
   updated_at TEXT NOT NULL
-);`
-
-	if _, err := db.Exec(query); err != nil {
-		return fmt.Errorf("run migrations: %w", err)
-	}
-	return nil
-}
+);

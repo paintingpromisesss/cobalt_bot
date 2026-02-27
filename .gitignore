@@ -2,4 +2,6 @@
 .env
 data/
 tmp/
-*.md
+PLAN.md
+deep-research-report.md
+*.exe
