@@ -23,7 +23,7 @@ type Config struct {
 func Load() (Config, error) {
 	cfg := Config{
 		TelegramBotToken: strings.TrimSpace(os.Getenv("TELEGRAM_BOT_TOKEN")),
-		CobaltBaseURL:    getEnvDefault("COBALT_BASE_URL", "http://127.17.0.1:9000/"),
+		CobaltBaseURL:    getEnvDefault("COBALT_BASE_URL", "http://cobalt:9000/"),
 		DBPath:           getEnvDefault("DB_PATH", "./data/bot.db"),
 		TempDir:          getEnvDefault("TEMP_DIR", "./tmp"),
 		LogLevel:         strings.ToLower(getEnvDefault("LOG_LEVEL", "info")),

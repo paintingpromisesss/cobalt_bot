@@ -21,10 +21,10 @@ services:
     container_name: cobalt
     restart: unless-stopped
     init: true
-    ports:
-      - "9000:9000"
+    expose:
+      - "9000"
     environment:
-      API_URL: "http://127.0.0.1:9000"
+      API_URL: "http://cobalt:9000"
       API_PORT: "9000"
 
       HTTP_PROXY: "http://mihomo:2080"

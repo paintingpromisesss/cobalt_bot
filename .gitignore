@@ -1,8 +1,13 @@
-*.yaml
+config.yaml
+subscription.yaml
+
 .env
 data/
 tmp/
+
 PLAN.md
 api.md
+api-env-variables.md
+
 *.exe
 .idea/
