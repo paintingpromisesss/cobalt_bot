@@ -86,7 +86,7 @@ const (
 	LocalProcessingServiceFacebook    LocalProcessingService = "facebook"
 	LocalProcessingServiceLoom        LocalProcessingService = "loom"
 	LocalProcessingServiceNewgrounds  LocalProcessingService = "newgrounds"
-	LocalProcessingServiceOkRu        LocalProcessingService = "ok.ru"
+	LocalProcessingServiceOkRu        LocalProcessingService = "ok"
 	LocalProcessingServicePinterest   LocalProcessingService = "pinterest"
 	LocalProcessingServiceReddit      LocalProcessingService = "reddit"
 	LocalProcessingServiceRutube      LocalProcessingService = "rutube"
