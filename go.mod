@@ -4,7 +4,10 @@ go 1.25.7
 
 require go.uber.org/zap v1.27.1
 
-require github.com/golang-migrate/migrate/v4 v4.19.1
+require (
+	github.com/golang-migrate/migrate/v4 v4.19.1
+	gopkg.in/telebot.v4 v4.0.0-beta.7
+)
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
