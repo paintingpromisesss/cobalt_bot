@@ -2,12 +2,14 @@ package handlers
 
 import (
 	"context"
+	"time"
 
 	"github.com/paintingpromisesss/cobalt_bot/internal/cobalt"
 	"github.com/paintingpromisesss/cobalt_bot/internal/downloader"
 	"github.com/paintingpromisesss/cobalt_bot/internal/queue"
 	"github.com/paintingpromisesss/cobalt_bot/internal/storage"
 	"github.com/paintingpromisesss/cobalt_bot/internal/telegram"
+	pickersession "github.com/paintingpromisesss/cobalt_bot/internal/telegram/picker_session"
 	"github.com/paintingpromisesss/cobalt_bot/internal/telegram/sender"
 	"github.com/paintingpromisesss/cobalt_bot/internal/urlvalidator"
 	"go.uber.org/zap"
@@ -15,30 +17,32 @@ import (
 )
 
 type Handler struct {
-	appCtx            context.Context
-	tb                *telegram.Bot
-	storage           *storage.DB
-	queueManager      *queue.RequestQueue
-	logger            *zap.Logger
-	cobaltClient      *cobalt.CobaltClient
-	downloader        *downloader.Downloader
-	urlValidator      *urlvalidator.URLValidator
-	sender            *sender.FileSender
-	availableServices []string
+	appCtx               context.Context
+	tb                   *telegram.Bot
+	storage              *storage.DB
+	queueManager         *queue.RequestQueue
+	logger               *zap.Logger
+	cobaltClient         *cobalt.CobaltClient
+	downloader           *downloader.Downloader
+	urlValidator         *urlvalidator.URLValidator
+	sender               *sender.FileSender
+	availableServices    []string
+	pickerSessionManager *pickersession.PickerSessionManager
 }
 
-func NewHandler(appCtx context.Context, tb *telegram.Bot, storage *storage.DB, queueManager *queue.RequestQueue, logger *zap.Logger, cobaltClient *cobalt.CobaltClient, downloader *downloader.Downloader, urlValidator *urlvalidator.URLValidator, sender *sender.FileSender, availableServices []string) *Handler {
+func NewHandler(appCtx context.Context, tb *telegram.Bot, storage *storage.DB, queueManager *queue.RequestQueue, logger *zap.Logger, cobaltClient *cobalt.CobaltClient, downloader *downloader.Downloader, urlValidator *urlvalidator.URLValidator, sender *sender.FileSender, availableServices []string, pickerSessionManagerTTL time.Duration) *Handler {
 	return &Handler{
-		appCtx:            appCtx,
-		tb:                tb,
-		storage:           storage,
-		queueManager:      queueManager,
-		logger:            logger,
-		cobaltClient:      cobaltClient,
-		downloader:        downloader,
-		urlValidator:      urlValidator,
-		sender:            sender,
-		availableServices: availableServices,
+		appCtx:               appCtx,
+		tb:                   tb,
+		storage:              storage,
+		queueManager:         queueManager,
+		logger:               logger,
+		cobaltClient:         cobaltClient,
+		downloader:           downloader,
+		urlValidator:         urlValidator,
+		sender:               sender,
+		availableServices:    availableServices,
+		pickerSessionManager: pickersession.NewPickerSessionManager(pickerSessionManagerTTL),
 	}
 }
 

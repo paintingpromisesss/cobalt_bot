@@ -10,14 +10,15 @@ import (
 )
 
 type Config struct {
-	TelegramBotToken string
-	CobaltBaseURL    string
-	MaxFileBytes     int64
-	DBPath           string
-	TempDir          string
-	RequestTimeout   time.Duration
-	DownloadTimeout  time.Duration
-	LogLevel         string
+	TelegramBotToken        string
+	CobaltBaseURL           string
+	MaxFileBytes            int64
+	DBPath                  string
+	TempDir                 string
+	RequestTimeout          time.Duration
+	DownloadTimeout         time.Duration
+	PickerSessionManagerTTL time.Duration
+	LogLevel                string
 }
 
 func Load() (Config, error) {
@@ -59,6 +60,14 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("DOWNLOAD_TIMEOUT must be a positive duration, got %q", downloadTimeoutRaw)
 	} else {
 		cfg.DownloadTimeout = downloadTimeout
+	}
+
+	pickerSessionManangerTTLRaw := strings.TrimSpace(getEnvDefault("PICKER_SESSION_MANAGER_TTL", "1h"))
+	pickerSessionManagerTTL, err := time.ParseDuration(pickerSessionManangerTTLRaw)
+	if err != nil || pickerSessionManagerTTL <= 0 {
+		return Config{}, fmt.Errorf("PICKER_SESSION_MANAGER_TTL must be a positive duration, got %q", pickerSessionManangerTTLRaw)
+	} else {
+		cfg.PickerSessionManagerTTL = pickerSessionManagerTTL
 	}
 
 	return cfg, nil

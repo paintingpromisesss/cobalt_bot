@@ -80,7 +80,7 @@ func Run(cfg config.Config) error {
 
 	availableServices := instanceInfo.Cobalt.Services
 
-	handler := handlers.NewHandler(ctx, tgBot, storage, queueManager, log, cobaltClient, downloader, urlValidator, sender, availableServices)
+	handler := handlers.NewHandler(ctx, tgBot, storage, queueManager, log, cobaltClient, downloader, urlValidator, sender, availableServices, cfg.PickerSessionManagerTTL)
 	if err := handler.RegisterHandlers(); err != nil {
 		log.Error("register handlers failed", zap.Error(err))
 		return err
