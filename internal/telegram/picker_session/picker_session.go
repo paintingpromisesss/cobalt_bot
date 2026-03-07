@@ -3,9 +3,12 @@ package pickersession
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/paintingpromisesss/cobalt_bot/internal/cobalt"
 )
 
 var (
@@ -52,10 +55,10 @@ func NewPickerSessionManager(ttl time.Duration) *PickerSessionManager {
 	}
 }
 
-func (m *PickerSessionManager) CreateSession(userID int64, options []PickerOption) string {
+func (m *PickerSessionManager) CreateSession(userID int64, options []cobalt.PickerObject) string {
 	id := fmt.Sprintf("%d", atomic.AddUint64(&m.seq, 1))
 
-	opts := append([]PickerOption(nil), options...)
+	opts := ParsePickerObjects(options)
 	sel := make([]bool, len(opts))
 
 	m.mu.Lock()
@@ -124,7 +127,7 @@ func (m *PickerSessionManager) ConsumeSelectedOptions(sessionID string, userID i
 		return nil, err
 	}
 
-	out := make([]PickerOption, len(s.options))
+	out := make([]PickerOption, 0, len(s.options))
 	for i, opt := range s.options {
 		if s.selected[i] {
 			out = append(out, opt)
@@ -170,4 +173,16 @@ func buildPickerView(session *pickerSession) PickerView {
 	}
 
 	return v
+}
+
+func ParsePickerObjects(objects []cobalt.PickerObject) []PickerOption {
+	opts := make([]PickerOption, len(objects))
+	for i, obj := range objects {
+		opts[i] = PickerOption{
+			Label:    fmt.Sprintf("%s #%d", strings.ToUpper(string(obj.Type)), i+1),
+			URL:      obj.Url,
+			Filename: cobalt.PickerFilenameByType(obj.Type, i+1),
+		}
+	}
+	return opts
 }

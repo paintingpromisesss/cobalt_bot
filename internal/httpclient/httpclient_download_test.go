@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-func TestDoRequestStreamSuccess(t *testing.T) {
+func TestDownloadSuccess(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -47,7 +47,7 @@ func TestDoRequestStreamSuccess(t *testing.T) {
 	}
 }
 
-func TestDoRequestStreamMaxBytesExceeded(t *testing.T) {
+func TestDownloadFileTooLarge(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -65,12 +65,12 @@ func TestDoRequestStreamMaxBytesExceeded(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
-	if !strings.Contains(err.Error(), "exceeds max bytes limit") {
+	if !strings.Contains(err.Error(), "file too large") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
-func TestDoRequestStreamReturnsErrorOnNon2xx(t *testing.T) {
+func TestDownloadReturnsErrorOnNon2xx(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

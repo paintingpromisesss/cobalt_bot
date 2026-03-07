@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/paintingpromisesss/cobalt_bot/internal/cobalt"
@@ -75,46 +74,18 @@ func (h *Handler) handleMessage(c tele.Context) error {
 			zap.String("filename", resp.Filename),
 		)
 
-		if _, err := c.Bot().Edit(statusMsg, "Информация о файле получена. Имя файла: "+resp.Filename+". Начинаю загрузку..."); err != nil {
-			return err
+		switch resp.Status {
+		case cobalt.StatusRedirect, cobalt.StatusTunnel:
+			if err := h.handleMessageStatusSingle(c, downloadCtx, statusMsg, userID, resp); err != nil {
+				return err
+			}
+		case cobalt.StatusPicker:
+			if err := h.handleMessageStatusPicker(c, statusMsg, userID, resp); err != nil {
+				return err
+			}
+		case cobalt.StatusError:
+			// TODO: function to handle
 		}
-
-		dlResult, err := h.downloader.Download(downloadCtx, resp.Url, resp.Filename)
-		if err != nil {
-			return err
-		}
-
-		h.logger.Info(
-			"download completed",
-			zap.Int64("user_id", userID),
-			zap.String("path", dlResult.Path),
-			zap.String("filename", dlResult.Filename),
-			zap.Int64("size", dlResult.Size),
-			zap.String("content_type", dlResult.ContentType),
-			zap.String("detected_mime", dlResult.DetectedMIME),
-		)
-
-		if dlResult.Size <= 0 {
-			return fmt.Errorf("downloaded empty file: %s", dlResult.Filename)
-		}
-
-		if _, err := c.Bot().Edit(statusMsg, "Файл загружен. Отправляю вам..."); err != nil {
-			return err
-		}
-
-		defer cleanupTempFile(h.logger, dlResult.Path)
-
-		if err := h.sender.SendFile(c, dlResult.Path, dlResult.Filename, dlResult.DetectedMIME, statusMsg); err != nil {
-			return err
-		}
-
-		h.logger.Info(
-			"file sent successfully",
-			zap.Int64("user_id", userID),
-			zap.String("filename", dlResult.Filename),
-			zap.String("detected_mime", dlResult.DetectedMIME),
-			zap.Int64("size", dlResult.Size),
-		)
 
 		return nil
 	})
