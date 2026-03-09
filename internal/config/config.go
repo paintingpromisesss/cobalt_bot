@@ -62,7 +62,7 @@ func Load() (Config, error) {
 		cfg.DownloadTimeout = downloadTimeout
 	}
 
-	pickerSessionManangerTTLRaw := strings.TrimSpace(getEnvDefault("PICKER_SESSION_MANAGER_TTL", "1h"))
+	pickerSessionManangerTTLRaw := strings.TrimSpace(getEnvDefault("PICKER_SESSION_MANAGER_TTL", "10m"))
 	pickerSessionManagerTTL, err := time.ParseDuration(pickerSessionManangerTTLRaw)
 	if err != nil || pickerSessionManagerTTL <= 0 {
 		return Config{}, fmt.Errorf("PICKER_SESSION_MANAGER_TTL must be a positive duration, got %q", pickerSessionManangerTTLRaw)

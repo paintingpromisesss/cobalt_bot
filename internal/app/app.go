@@ -14,6 +14,7 @@ import (
 	"github.com/paintingpromisesss/cobalt_bot/internal/storage"
 	"github.com/paintingpromisesss/cobalt_bot/internal/telegram"
 	"github.com/paintingpromisesss/cobalt_bot/internal/telegram/handlers"
+	pickersession "github.com/paintingpromisesss/cobalt_bot/internal/telegram/picker_session"
 	"github.com/paintingpromisesss/cobalt_bot/internal/telegram/sender"
 	"github.com/paintingpromisesss/cobalt_bot/internal/urlvalidator"
 	"go.uber.org/zap"
@@ -78,8 +79,9 @@ func Run(cfg config.Config) error {
 
 	availableServices := instanceInfo.Cobalt.Services
 	urlValidator := urlvalidator.NewURLValidator(availableServices)
+	pickerSessionManager := pickersession.NewPickerSessionManager(cfg.PickerSessionManagerTTL)
 
-	handler := handlers.NewHandler(ctx, tgBot, storage, queueManager, log, cobaltClient, downloader, urlValidator, sender, availableServices, cfg.PickerSessionManagerTTL)
+	handler := handlers.NewHandler(ctx, tgBot, storage, queueManager, log, cobaltClient, downloader, urlValidator, sender, availableServices, pickerSessionManager)
 	if err := handler.RegisterHandlers(); err != nil {
 		log.Error("register handlers failed", zap.Error(err))
 		return err

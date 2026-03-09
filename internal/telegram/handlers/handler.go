@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"time"
 
 	"github.com/paintingpromisesss/cobalt_bot/internal/cobalt"
 	"github.com/paintingpromisesss/cobalt_bot/internal/downloader"
@@ -30,7 +29,7 @@ type Handler struct {
 	pickerSessionManager *pickersession.PickerSessionManager
 }
 
-func NewHandler(appCtx context.Context, tb *telegram.Bot, storage *storage.DB, queueManager *queue.RequestQueue, logger *zap.Logger, cobaltClient *cobalt.CobaltClient, downloader *downloader.Downloader, urlValidator *urlvalidator.URLValidator, sender *sender.FileSender, availableServices []string, pickerSessionManagerTTL time.Duration) *Handler {
+func NewHandler(appCtx context.Context, tb *telegram.Bot, storage *storage.DB, queueManager *queue.RequestQueue, logger *zap.Logger, cobaltClient *cobalt.CobaltClient, downloader *downloader.Downloader, urlValidator *urlvalidator.URLValidator, sender *sender.FileSender, availableServices []string, pickerSessionManager *pickersession.PickerSessionManager) *Handler {
 	return &Handler{
 		appCtx:               appCtx,
 		tb:                   tb,
@@ -42,7 +41,7 @@ func NewHandler(appCtx context.Context, tb *telegram.Bot, storage *storage.DB, q
 		urlValidator:         urlValidator,
 		sender:               sender,
 		availableServices:    availableServices,
-		pickerSessionManager: pickersession.NewPickerSessionManager(pickerSessionManagerTTL),
+		pickerSessionManager: pickerSessionManager,
 	}
 }
 
