@@ -3,10 +3,10 @@ package handlers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/paintingpromisesss/cobalt_bot/internal/cobalt"
-	"github.com/paintingpromisesss/cobalt_bot/internal/downloader"
 	"github.com/paintingpromisesss/cobalt_bot/internal/storage"
 	"go.uber.org/zap"
 	tele "gopkg.in/telebot.v4"
@@ -19,6 +19,7 @@ func (h *Handler) handleMessage(c tele.Context) error {
 	defer cancelDownload()
 
 	userID := c.Sender().ID
+	username := c.Sender().Username
 	url := c.Text()
 	sessionStartedAt := time.Now()
 
@@ -27,6 +28,7 @@ func (h *Handler) handleMessage(c tele.Context) error {
 		h.logger.Warn(
 			"user sent invalid url",
 			zap.Int64("user_id", userID),
+			zap.String("username", username),
 			zap.String("input", url),
 		)
 		return c.Send("Похоже, это невалидная или недоступная ссылка. Отправьте корректный URL.")
@@ -37,6 +39,7 @@ func (h *Handler) handleMessage(c tele.Context) error {
 	h.logger.Info(
 		"user started download session",
 		zap.Int64("user_id", userID),
+		zap.String("username", username),
 		zap.String("url", url),
 	)
 
@@ -55,7 +58,7 @@ func (h *Handler) handleMessage(c tele.Context) error {
 
 	cobaltRequest := cobalt.GetCobaltRequest(url, settings)
 
-	statusMsg, err := c.Bot().Send(c.Recipient(), "Ваш запрос принят. Получаю информацию о файле...")
+	statusMsg, err := c.Bot().Send(c.Recipient(), "Ваш запрос принят. Получаю информацию...")
 	if err != nil {
 		return err
 	}
@@ -69,6 +72,7 @@ func (h *Handler) handleMessage(c tele.Context) error {
 		h.logger.Info(
 			"cobalt content response received",
 			zap.Int64("user_id", userID),
+			zap.String("username", username),
 			zap.String("status", string(resp.Status)),
 			zap.String("url", resp.Url),
 			zap.String("filename", resp.Filename),
@@ -84,7 +88,9 @@ func (h *Handler) handleMessage(c tele.Context) error {
 				return err
 			}
 		case cobalt.StatusError:
-			// TODO: function to handle
+			return cobaltErrorToErr(resp.Error)
+		default:
+			return fmt.Errorf("unsupported cobalt status: %q", resp.Status)
 		}
 
 		return nil
@@ -93,22 +99,13 @@ func (h *Handler) handleMessage(c tele.Context) error {
 		h.logger.Error(
 			"download session failed",
 			zap.Int64("user_id", userID),
+			zap.String("username", username),
 			zap.Duration("session_duration", time.Since(sessionStartedAt)),
 			zap.Error(err),
 		)
 
-		errorText := "Произошла ошибка при обработке вашего запроса: " + err.Error()
-		switch {
-		case errors.Is(err, context.DeadlineExceeded):
-			errorText = "Не удалось завершить обработку вовремя. Попробуйте еще раз."
-		case errors.Is(err, downloader.ErrFileTooLarge):
-			errorText = "Файл слишком большой для отправки."
-		case errors.Is(err, downloader.ErrEmptyFile):
-			errorText = "Скачанный файл оказался пустым. Попробуйте повторить позже."
-		}
-
-		if _, editErr := c.Bot().Edit(statusMsg, errorText); editErr != nil {
-			h.logger.Error("failed to edit status message with error", zap.Int64("user_id", userID), zap.Error(editErr))
+		if _, editErr := c.Bot().Edit(statusMsg, pickerErrorToText(err)); editErr != nil {
+			h.logger.Error("failed to edit status message with error", zap.Int64("user_id", userID), zap.String("username", username), zap.Error(editErr))
 		}
 
 		return err
@@ -117,6 +114,7 @@ func (h *Handler) handleMessage(c tele.Context) error {
 	h.logger.Info(
 		"download session completed",
 		zap.Int64("user_id", userID),
+		zap.String("username", username),
 		zap.Duration("session_duration", time.Since(sessionStartedAt)),
 	)
 

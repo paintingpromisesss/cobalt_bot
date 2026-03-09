@@ -321,8 +321,6 @@ func PickerFilenameByType(objType PickerType, index int) string {
 		return fmt.Sprintf("picker_photo_%d.jpg", index)
 	case PickerTypeVideo:
 		return fmt.Sprintf("picker_video_%d.mp4", index)
-	case PickerTypeGif:
-		return fmt.Sprintf("picker_gif_%d.gif", index)
 	default:
 		return fmt.Sprintf("picker_file_%d", index)
 	}

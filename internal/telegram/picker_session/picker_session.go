@@ -55,10 +55,10 @@ func NewPickerSessionManager(ttl time.Duration) *PickerSessionManager {
 	}
 }
 
-func (m *PickerSessionManager) CreateSession(userID int64, options []cobalt.PickerObject) string {
+func (m *PickerSessionManager) CreateSession(userID int64, cobaltResponse cobalt.MainResponse) string {
 	id := fmt.Sprintf("%d", atomic.AddUint64(&m.seq, 1))
 
-	opts := ParsePickerObjects(options)
+	opts := ParsePickerObjects(cobaltResponse)
 	sel := make([]bool, len(opts))
 
 	m.mu.Lock()
@@ -143,6 +143,19 @@ func (m *PickerSessionManager) ConsumeSelectedOptions(sessionID string, userID i
 	return out, nil
 }
 
+func (m *PickerSessionManager) DeleteSession(sessionID string, userID int64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	_, err := m.validateSession(sessionID, userID)
+	if err != nil {
+		return err
+	}
+
+	delete(m.sessions, sessionID)
+	return nil
+}
+
 func (m *PickerSessionManager) validateSession(sessionID string, userID int64) (*pickerSession, error) {
 	session, ok := m.sessions[sessionID]
 	if !ok {
@@ -175,7 +188,8 @@ func buildPickerView(session *pickerSession) PickerView {
 	return v
 }
 
-func ParsePickerObjects(objects []cobalt.PickerObject) []PickerOption {
+func ParsePickerObjects(cobaltResponse cobalt.MainResponse) []PickerOption {
+	objects := cobaltResponse.Picker
 	opts := make([]PickerOption, len(objects))
 	for i, obj := range objects {
 		opts[i] = PickerOption{
@@ -183,6 +197,13 @@ func ParsePickerObjects(objects []cobalt.PickerObject) []PickerOption {
 			URL:      obj.Url,
 			Filename: cobalt.PickerFilenameByType(obj.Type, i+1),
 		}
+	}
+	if cobaltResponse.PickerAudio != nil && cobaltResponse.AudioFilename != nil {
+		opts = append(opts, PickerOption{
+			Label:    "Аудио",
+			URL:      *cobaltResponse.PickerAudio,
+			Filename: *cobaltResponse.AudioFilename,
+		})
 	}
 	return opts
 }

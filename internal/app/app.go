@@ -68,8 +68,6 @@ func Run(cfg config.Config) error {
 	cobaltClient := cobalt.NewCobaltClient(cfg.CobaltBaseURL, cfg.RequestTimeout)
 
 	downloader := downloader.NewDownloader(cfg.DownloadTimeout, cfg.TempDir, cfg.MaxFileBytes)
-	urlValidator := urlvalidator.NewURLValidator(cfg.RequestTimeout)
-
 	sender := sender.NewFileSender()
 
 	instanceInfo, err := cobaltClient.GetInstanceInfo(ctx)
@@ -79,6 +77,7 @@ func Run(cfg config.Config) error {
 	}
 
 	availableServices := instanceInfo.Cobalt.Services
+	urlValidator := urlvalidator.NewURLValidator(availableServices)
 
 	handler := handlers.NewHandler(ctx, tgBot, storage, queueManager, log, cobaltClient, downloader, urlValidator, sender, availableServices, cfg.PickerSessionManagerTTL)
 	if err := handler.RegisterHandlers(); err != nil {

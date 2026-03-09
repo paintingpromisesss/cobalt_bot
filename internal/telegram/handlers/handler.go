@@ -49,5 +49,6 @@ func NewHandler(appCtx context.Context, tb *telegram.Bot, storage *storage.DB, q
 func (h *Handler) RegisterHandlers() error {
 	h.tb.Bot.Handle("/start", h.handleStart)
 	h.tb.Bot.Handle(tele.OnText, h.handleMessage)
+	h.tb.Bot.Handle(&tele.Btn{Unique: PickerButtonUnique}, h.handlePickerCallback)
 	return nil
 }
