@@ -2,11 +2,9 @@ package handlers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/paintingpromisesss/cobalt_bot/internal/cobalt"
-	"github.com/paintingpromisesss/cobalt_bot/internal/downloader"
 	"go.uber.org/zap"
 	tele "gopkg.in/telebot.v4"
 )
@@ -16,7 +14,7 @@ func (h *Handler) handleMessageStatusSingle(c tele.Context, ctx context.Context,
 		return err
 	}
 
-	downloadResult, err := h.downloadSingleWithFallback(c, ctx, statusMsg, userID, sourceURL, cobaltResponse)
+	downloadResult, err := h.downloader.Download(ctx, cobaltResponse.Url, cobaltResponse.Filename)
 	if err != nil {
 		h.logger.Error(
 			"failed to download file",
@@ -62,28 +60,4 @@ func (h *Handler) handleMessageStatusSingle(c tele.Context, ctx context.Context,
 	)
 
 	return nil
-}
-
-func (h *Handler) downloadSingleWithFallback(c tele.Context, ctx context.Context, statusMsg *tele.Message, userID int64, sourceURL string, cobaltResponse cobalt.MainResponse) (downloader.DownloadResult, error) {
-	result, err := h.downloader.Download(ctx, cobaltResponse.Url, cobaltResponse.Filename)
-	if err == nil {
-		return result, nil
-	}
-
-	if !errors.Is(err, downloader.ErrEmptyFile) || !IsYouTubeURL(sourceURL) {
-		return downloader.DownloadResult{}, err
-	}
-
-	h.logger.Warn(
-		"cobalt returned empty file for youtube, falling back to yt-dlp",
-		zap.Int64("user_id", userID),
-		zap.String("source_url", sourceURL),
-		zap.String("filename", cobaltResponse.Filename),
-	)
-
-	if _, err := c.Bot().Edit(statusMsg, "Источник вернул пустой файл. Пробую резервный способ загрузки для YouTube..."); err != nil {
-		return downloader.DownloadResult{}, err
-	}
-
-	return h.ytDownloader.Download(ctx, sourceURL, cobaltResponse.Filename)
 }

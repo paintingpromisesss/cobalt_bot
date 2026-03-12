@@ -95,7 +95,7 @@ func Run(cfg config.Config) error {
 		log,
 		cobaltClient,
 		downloader,
-		ytDownloader,
+		ytDownloader, // TODO: fix this
 		urlValidator,
 		sender,
 		availableServices,

@@ -45,6 +45,7 @@ func (s *FileSender) SendFile(c tele.Context, filePath, fileName, detectedMIME s
 	return nil
 }
 
+// TODO: fix this
 func (s *FileSender) buildMedia(filePath, fileName, detectedMIME string) (any, func()) {
 	file := tele.FromDisk(filePath)
 	mime := strings.TrimSpace(strings.ToLower(detectedMIME))

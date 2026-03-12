@@ -1,5 +1,7 @@
 package ytdlp
 
+import "fmt"
+
 type MediaType string
 type FormatNote string
 type VCodec string
@@ -74,16 +76,17 @@ const (
 )
 
 type Metadata struct {
-	ID                string                `json:"id"`
-	Title             string                `json:"title"`
-	Thumbnail         string                `json:"thumbnail"`
-	IsLive            bool                  `json:"is_live"`
-	MediaType         MediaType             `json:"media_type"`
-	OriginalURL       string                `json:"original_url"`
-	Duration          int                   `json:"duration"`
-	Formats           []Format              `json:"formats"`
-	Subtitles         map[string][]Subtitle `json:"subtitles"`
-	AutomaticCaptions map[string][]Subtitle `json:"automatic_captions"`
+	ID                 string                `json:"id"`
+	Title              string                `json:"title"`
+	Thumbnail          string                `json:"thumbnail"`
+	IsLive             bool                  `json:"is_live"`
+	MediaType          MediaType             `json:"media_type"`
+	OriginalURL        string                `json:"original_url"`
+	Duration           int                   `json:"duration"`
+	Formats            []Format              `json:"formats"`
+	Subtitles          map[string][]Subtitle `json:"subtitles"`
+	AutomaticCaptions  map[string][]Subtitle `json:"automatic_captions"`
+	RequestedDownloads []RequestedDownloads  `json:"requested_downloads"`
 }
 
 type Subtitle struct {
@@ -101,6 +104,10 @@ type HttpHeaders struct {
 	SecFetchMode string `json:"Sec-Fetch-Mode"`
 }
 
+type RequestedDownloads struct {
+	RequestedFormats []Format `json:"requested_formats"`
+}
+
 type Format struct {
 	FormatID       string      `json:"format_id"`
 	FormatNote     string      `json:"format_note"`
@@ -116,6 +123,8 @@ type Format struct {
 	Height         int         `json:"height"`
 	FPS            float64     `json:"fps"`
 	URL            string      `json:"url"`
+	ABR            float64     `json:"abr"`
+	VBR            float64     `json:"vbr"`
 	Resolution     string      `json:"resolution"`
 	HttpHeaders    HttpHeaders `json:"http_headers"`
 }
@@ -126,4 +135,62 @@ func (f Format) IsVideo() bool {
 
 func (f Format) IsAudio() bool {
 	return f.ACodec != "none"
+}
+
+func (f RequestedDownloads) GetBestAudioFormat() *Format {
+	var bestAudio *Format
+	for _, format := range f.RequestedFormats {
+		if format.IsAudio() {
+			bestAudio = &format
+			break
+		}
+	}
+	return bestAudio
+}
+
+func (f RequestedDownloads) GetBestVideoFormat() *Format {
+	var bestVideo *Format
+	for _, format := range f.RequestedFormats {
+		if format.IsVideo() {
+			bestVideo = &format
+			break
+		}
+	}
+	return bestVideo
+}
+
+func (f Format) GetRoundedABR() int {
+	if f.ABR == 0 {
+		return 0
+	}
+	return int(f.ABR + 0.5)
+}
+
+func (f Format) GetRoundedVBR() int {
+	if f.VBR == 0 {
+		return 0
+	}
+	return int(f.VBR + 0.5)
+}
+
+func (f Format) GetDisplayName(audioFormat, videoFormat *Format) string {
+	if f.FormatNote != "" {
+		return f.FormatNote
+	}
+
+	if f.IsAudio() && !f.IsVideo() {
+		return fmt.Sprintf("Audio %dkbps", f.GetRoundedABR())
+	}
+	if f.IsVideo() && !f.IsAudio() {
+		return fmt.Sprintf("Video %dx%d", f.Width, f.Height)
+	}
+
+	if f.IsAudio() && f.IsVideo() {
+		return fmt.Sprintf("Video %dx%d + Audio %dkbps (muxed)", f.Width, f.Height, f.GetRoundedABR())
+	}
+
+	if audioFormat != nil && videoFormat != nil {
+		return fmt.Sprintf("Video %dx%d + Audio %dkbps (merged)", videoFormat.Width, videoFormat.Height, audioFormat.GetRoundedABR())
+	}
+	return f.FormatID
 }

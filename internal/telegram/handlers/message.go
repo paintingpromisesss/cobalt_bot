@@ -9,6 +9,7 @@ import (
 	"github.com/paintingpromisesss/cobalt_bot/internal/cobalt"
 	"github.com/paintingpromisesss/cobalt_bot/internal/storage"
 	"github.com/paintingpromisesss/cobalt_bot/internal/telegram"
+	"github.com/paintingpromisesss/cobalt_bot/internal/ytdlp"
 	"go.uber.org/zap"
 	tele "gopkg.in/telebot.v4"
 )
@@ -58,44 +59,19 @@ func (h *Handler) handleMessage(c tele.Context) error {
 		}
 	}
 
-	cobaltRequest := cobalt.GetCobaltRequest(url, settings)
-
 	statusMsg, err := c.Bot().Send(user, "Ваш запрос принят. Получаю информацию...")
 	if err != nil {
 		return err
 	}
 
+	isYoutubeURL, contentType := h.ytDLPClient.IdentifyYoutubeURL(url)
+
 	err = h.queueManager.Run(userID, func() error {
-		resp, err := h.cobaltClient.GetContentURL(metaCtx, cobaltRequest)
-		if err != nil {
-			return err
+		if !isYoutubeURL {
+			return h.processCobaltRequest(c, downloadCtx, metaCtx, statusMsg, user, userID, url, username, settings)
 		}
 
-		h.logger.Info(
-			"cobalt content response received",
-			zap.Int64("user_id", userID),
-			zap.String("username", username),
-			zap.String("status", string(resp.Status)),
-			zap.String("url", resp.Url),
-			zap.String("filename", resp.Filename),
-		)
-
-		switch resp.Status {
-		case cobalt.StatusRedirect, cobalt.StatusTunnel:
-			if err := h.handleMessageStatusSingle(c, downloadCtx, statusMsg, user, userID, url, resp); err != nil {
-				return err
-			}
-		case cobalt.StatusPicker:
-			if err := h.handleMessageStatusPicker(c, statusMsg, userID, resp); err != nil {
-				return err
-			}
-		case cobalt.StatusError:
-			return cobaltErrorToErr(resp.Error)
-		default:
-			return fmt.Errorf("unsupported cobalt status: %q", resp.Status)
-		}
-
-		return nil
+		return h.processYoutubeRequest(c, downloadCtx, metaCtx, statusMsg, user, userID, url, username, settings, contentType)
 	})
 	if err != nil {
 		h.logger.Error(
@@ -120,6 +96,72 @@ func (h *Handler) handleMessage(c tele.Context) error {
 		zap.String("username", username),
 		zap.Duration("session_duration", time.Since(sessionStartedAt)),
 	)
+
+	return nil
+}
+
+func (h *Handler) processCobaltRequest(c tele.Context, downloadCtx, metaCtx context.Context, statusMsg *tele.Message, user tele.Recipient, userID int64, url, username string, userSettings storage.UserSettings) error {
+	cobaltRequest := cobalt.GetCobaltRequest(url, userSettings)
+	resp, err := h.cobaltClient.GetContentURL(metaCtx, cobaltRequest)
+	if err != nil {
+		return err
+	}
+
+	h.logger.Info(
+		"cobalt content response received",
+		zap.Int64("user_id", userID),
+		zap.String("username", username),
+		zap.String("status", string(resp.Status)),
+		zap.String("url", resp.Url),
+		zap.String("filename", resp.Filename),
+	)
+
+	switch resp.Status {
+	case cobalt.StatusRedirect, cobalt.StatusTunnel:
+		if err := h.handleMessageStatusSingle(c, downloadCtx, statusMsg, user, userID, url, resp); err != nil {
+			return err
+		}
+	case cobalt.StatusPicker:
+		if err := h.handleMessageStatusPicker(c, statusMsg, userID, resp); err != nil {
+			return err
+		}
+	case cobalt.StatusError:
+		return cobaltErrorToErr(resp.Error)
+	default:
+		return fmt.Errorf("unsupported cobalt status: %q", resp.Status)
+	}
+
+	return nil
+}
+
+func (h *Handler) processYoutubeRequest(c tele.Context, downloadCtx, metaCtx context.Context, statusMsg *tele.Message, user tele.Recipient, userID int64, url, username string, userSettings storage.UserSettings, contentType ytdlp.YoutubeURLType) error {
+	meta, err := h.ytDLPClient.GetMetadata(metaCtx, url)
+	if err != nil {
+		return err
+	}
+
+	h.logger.Info(
+		"youtube metadata received",
+		zap.Int64("user_id", userID),
+		zap.String("username", username),
+		zap.String("url", url),
+		zap.String("title", meta.Title),
+		zap.Bool("is_live", meta.IsLive),
+		zap.String("media_type", string(meta.MediaType)),
+	)
+
+	switch contentType {
+	case ytdlp.YoutubeVideo:
+		if err := h.handleYoutubeVideoRequest(c, downloadCtx, statusMsg, user, userID, url, meta); err != nil {
+			return err
+		}
+	case ytdlp.YoutubeMusic, ytdlp.YoutubeShorts:
+		if err := h.handleYoutubeMusicAndShortsRequest(c, downloadCtx, statusMsg, user, userID, url, meta); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unsupported youtube content type: %q", contentType)
+	}
 
 	return nil
 }

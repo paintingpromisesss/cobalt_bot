@@ -29,25 +29,25 @@ func (h *Handler) handlePickerCallback(c tele.Context) error {
 
 	switch action {
 	case ToggleAction:
-		pickerView, err := h.pickerSessionManager.TogglePickerOption(sessionID, userID, optionIdx)
+		pickerView, err := h.pickerSessionManager.ToggleCobaltPickerOption(sessionID, userID, optionIdx)
 		if err != nil {
 			return handlePickerCallbackError(c, statusMsg, err)
 		}
 		return h.renderPickerKeyboard(c, statusMsg, sessionID, &pickerView)
 	case SelectAllAction:
-		pickerView, err := h.pickerSessionManager.MarkAllPickerOptions(sessionID, userID, true)
+		pickerView, err := h.pickerSessionManager.MarkAllCobaltPickerOptions(sessionID, userID, true)
 		if err != nil {
 			return handlePickerCallbackError(c, statusMsg, err)
 		}
 		return h.renderPickerKeyboard(c, statusMsg, sessionID, &pickerView)
 	case ClearAllAction:
-		pickerView, err := h.pickerSessionManager.MarkAllPickerOptions(sessionID, userID, false)
+		pickerView, err := h.pickerSessionManager.MarkAllCobaltPickerOptions(sessionID, userID, false)
 		if err != nil {
 			return handlePickerCallbackError(c, statusMsg, err)
 		}
 		return h.renderPickerKeyboard(c, statusMsg, sessionID, &pickerView)
 	case DownloadAction:
-		options, err := h.pickerSessionManager.ConsumeSelectedOptions(sessionID, userID)
+		options, err := h.pickerSessionManager.ConsumeSelectedCobaltOptions(sessionID, userID)
 		if err != nil {
 			return handlePickerCallbackError(c, statusMsg, err)
 		}

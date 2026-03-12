@@ -5,6 +5,14 @@ import (
 	"strings"
 )
 
+type YoutubeURLType string
+
+const (
+	YoutubeVideo  YoutubeURLType = "video"
+	YoutubeMusic  YoutubeURLType = "music"
+	YoutubeShorts YoutubeURLType = "shorts"
+)
+
 func (c *Client) buildGetMetadataArgs(url string, ClientType *YtDLPClient) []string {
 	args := []string{"-J", "--skip-download"}
 
@@ -33,13 +41,16 @@ func (c *Client) buildGetMetadataArgs(url string, ClientType *YtDLPClient) []str
 	return args
 }
 
-func IdentifyYoutubeURL(url string) (bool, string) {
+func (c *Client) IdentifyYoutubeURL(url string) (bool, YoutubeURLType) {
 	lowerURL := strings.ToLower(strings.TrimSpace(url))
 	if strings.Contains(lowerURL, "youtube.com/") || strings.Contains(lowerURL, "youtu.be/") {
 		if strings.Contains(lowerURL, "music") {
-			return true, "music"
+			return true, YoutubeMusic
 		}
-		return true, "video"
+		if strings.Contains(lowerURL, "shorts") {
+			return true, YoutubeShorts
+		}
+		return true, YoutubeVideo
 	}
 	return false, "other"
 }

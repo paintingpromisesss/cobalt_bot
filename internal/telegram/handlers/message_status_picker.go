@@ -32,8 +32,8 @@ const (
 
 // handleMessageStatusPicker реализует обработку статуса Picker от Cobalt, который возвращает список объектов для скачивания.
 func (h *Handler) handleMessageStatusPicker(c tele.Context, statusMsg *tele.Message, userID int64, cobaltResponse cobalt.MainResponse) error {
-	pickerSessionID := h.pickerSessionManager.CreateSession(userID, cobaltResponse)
-	pickerView, err := h.pickerSessionManager.GetPickerView(pickerSessionID, userID)
+	pickerSessionID := h.pickerSessionManager.CreateCobaltSession(userID, cobaltResponse)
+	pickerView, err := h.pickerSessionManager.GetCobaltPickerView(pickerSessionID, userID)
 	if err != nil {
 		return err
 	}
@@ -42,13 +42,13 @@ func (h *Handler) handleMessageStatusPicker(c tele.Context, statusMsg *tele.Mess
 
 }
 
-func (h *Handler) renderPickerKeyboard(c tele.Context, statusMsg *tele.Message, sessionID string, pickerView *pickersession.PickerView) error {
+func (h *Handler) renderPickerKeyboard(c tele.Context, statusMsg *tele.Message, sessionID string, pickerView *pickersession.CobaltPickerView) error {
 	markup, message := buildPickerMessage(sessionID, pickerView)
 	_, err := c.Bot().Edit(statusMsg, message, &tele.SendOptions{ReplyMarkup: markup})
 	return err
 }
 
-func (h *Handler) DownloadAndSendSelectedOptions(c tele.Context, statusMsg *tele.Message, downloadCtx context.Context, userID int64, user tele.Recipient, options []pickersession.PickerOption) error {
+func (h *Handler) DownloadAndSendSelectedOptions(c tele.Context, statusMsg *tele.Message, downloadCtx context.Context, userID int64, user tele.Recipient, options []pickersession.CobaltPickerOption) error {
 	if len(options) == 0 {
 		return pickersession.ErrNoOptionsSelected
 	}
@@ -117,7 +117,7 @@ func (h *Handler) DownloadAndSendSelectedOptions(c tele.Context, statusMsg *tele
 	return nil
 }
 
-func buildPickerMessage(sessionID string, pickerView *pickersession.PickerView) (*tele.ReplyMarkup, string) {
+func buildPickerMessage(sessionID string, pickerView *pickersession.CobaltPickerView) (*tele.ReplyMarkup, string) {
 	markup := &tele.ReplyMarkup{}
 	total := len(pickerView.Options)
 	rows := make([]tele.Row, 0, total+3)

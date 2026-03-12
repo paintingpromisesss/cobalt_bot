@@ -13,6 +13,7 @@ type Client struct {
 	MaxFileBytes           int64
 	CurrentlyLiveAvailable bool
 	PlaylistAvailable      bool
+	ClientType             *YtDLPClient
 }
 
 func NewClient(tempDir string, maxDurationSecs int, maxFileBytes int64, currentlyLiveAvailable bool, playlistAvailable bool) *Client {
@@ -26,7 +27,7 @@ func NewClient(tempDir string, maxDurationSecs int, maxFileBytes int64, currentl
 }
 
 func (c *Client) GetMetadata(ctx context.Context, url string) (*Metadata, error) {
-	args := c.buildGetMetadataArgs(url, nil)
+	args := c.buildGetMetadataArgs(url, c.ClientType)
 	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
 
 	cmd.Env = append(os.Environ(),
