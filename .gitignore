@@ -18,3 +18,5 @@ scratch/
 rest_client/
 
 .gocache/
+yt-dlp readme.md
+yt-dlp_dumps/
