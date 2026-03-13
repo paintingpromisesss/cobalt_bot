@@ -11,6 +11,7 @@ var (
 	ErrSessionExpired    = errors.New("picker session expired")
 	ErrInvalidOptionIdx  = errors.New("invalid option index")
 	ErrNoOptionsSelected = errors.New("no options selected")
+	ErrWrongSessionType  = errors.New("wrong session type")
 
 	ErrInvalidYtDLPTab = errors.New("invalid yt-dlp picker tab")
 )

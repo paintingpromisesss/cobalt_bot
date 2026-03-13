@@ -1,8 +1,6 @@
 package pickersession
 
 import (
-	"fmt"
-	"sync/atomic"
 	"time"
 
 	"github.com/paintingpromisesss/cobalt_bot/internal/ytdlp"
@@ -44,16 +42,20 @@ type YtDLPPickerView struct {
 	Options   []YtDLPPickerOption
 }
 
-func (m *PickerSessionManager) CreateYtDLPSession(userID int64, metadata *ytdlp.Metadata) string {
-	id := fmt.Sprintf("%d", atomic.AddUint64(&m.seq, 1))
-
+func (m *PickerSessionManager) CreateYtDLPSession(userID int64, metadata *ytdlp.Metadata) (string, error) {
 	optsByTab := ParseYtDLPMetadata(metadata)
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	id, err := m.newUniqueSessionIDLocked()
+	if err != nil {
+		return "", err
+	}
+
 	m.sessions[id] = &pickerSession{
-		userID: userID,
+		sessionType: PickerSessionTypeYtDLP,
+		userID:      userID,
 		ytdlp: &YtDLPPickerState{
 			ActiveTab:    YtDLPPickerTabNone,
 			OptionsByTab: optsByTab,
@@ -61,7 +63,7 @@ func (m *PickerSessionManager) CreateYtDLPSession(userID int64, metadata *ytdlp.
 		expiresAt: time.Now().Add(m.ttl),
 	}
 
-	return id
+	return id, nil
 }
 
 func (m *PickerSessionManager) GetYtDLPPickerView(sessionID string, userID int64) (YtDLPPickerView, error) {
@@ -91,7 +93,7 @@ func (m *PickerSessionManager) ChooseYtDLPOption(sessionID string, userID int64,
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	s, err := m.validateSessionLocked(sessionID, userID)
+	s, err := m.validateSessionLocked(sessionID, userID, PickerSessionTypeYtDLP)
 	if err != nil {
 		return YtDLPPickerOption{}, err
 	}
@@ -112,7 +114,7 @@ func (m *PickerSessionManager) ConsumeChosenYtDLPOption(sessionID string, userID
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	s, err := m.validateSessionLocked(sessionID, userID)
+	s, err := m.validateSessionLocked(sessionID, userID, PickerSessionTypeYtDLP)
 	if err != nil {
 		return YtDLPPickerOption{}, err
 	}
@@ -137,7 +139,7 @@ func (m *PickerSessionManager) withYtDLPSessionView(sessionID string, userID int
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	s, err := m.validateSessionLocked(sessionID, userID)
+	s, err := m.validateSessionLocked(sessionID, userID, PickerSessionTypeYtDLP)
 	if err != nil {
 		return YtDLPPickerView{}, err
 	}

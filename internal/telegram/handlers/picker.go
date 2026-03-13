@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/paintingpromisesss/cobalt_bot/internal/telegram"
+	pickersession "github.com/paintingpromisesss/cobalt_bot/internal/telegram/picker_session"
 	"go.uber.org/zap"
 	tele "gopkg.in/telebot.v4"
 )
@@ -63,7 +64,7 @@ func (h *Handler) handlePickerCallback(c tele.Context) error {
 		}
 		return nil
 	case CancelAction:
-		err := h.pickerSessionManager.DeleteSession(sessionID, userID)
+		err := h.pickerSessionManager.DeleteSession(sessionID, userID, pickersession.PickerSessionTypeCobalt)
 		if err != nil {
 			return handlePickerCallbackError(c, statusMsg, err)
 		}

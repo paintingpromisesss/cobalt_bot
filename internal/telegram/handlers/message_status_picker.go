@@ -32,7 +32,10 @@ const (
 
 // handleMessageStatusPicker реализует обработку статуса Picker от Cobalt, который возвращает список объектов для скачивания.
 func (h *Handler) handleMessageStatusPicker(c tele.Context, statusMsg *tele.Message, userID int64, cobaltResponse cobalt.MainResponse) error {
-	pickerSessionID := h.pickerSessionManager.CreateCobaltSession(userID, cobaltResponse)
+	pickerSessionID, err := h.pickerSessionManager.CreateCobaltSession(userID, cobaltResponse)
+	if err != nil {
+		return fmt.Errorf("create cobalt picker session: %w", err)
+	}
 	pickerView, err := h.pickerSessionManager.GetCobaltPickerView(pickerSessionID, userID)
 	if err != nil {
 		return err

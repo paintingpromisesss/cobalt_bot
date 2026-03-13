@@ -3,7 +3,6 @@ package pickersession
 import (
 	"fmt"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/paintingpromisesss/cobalt_bot/internal/cobalt"
@@ -29,17 +28,21 @@ type CobaltPickerOptionView struct {
 	Selected bool
 }
 
-func (m *PickerSessionManager) CreateCobaltSession(userID int64, cobaltResponse cobalt.MainResponse) string {
-	id := fmt.Sprintf("%d", atomic.AddUint64(&m.seq, 1))
-
+func (m *PickerSessionManager) CreateCobaltSession(userID int64, cobaltResponse cobalt.MainResponse) (string, error) {
 	opts := ParsePickerObjects(cobaltResponse)
 	sel := make([]bool, len(opts))
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	id, err := m.newUniqueSessionIDLocked()
+	if err != nil {
+		return "", err
+	}
+
 	m.sessions[id] = &pickerSession{
-		userID: userID,
+		sessionType: PickerSessionTypeCobalt,
+		userID:      userID,
 		cobalt: &CobaltPickerState{
 			Selected: sel,
 			Options:  opts,
@@ -47,7 +50,7 @@ func (m *PickerSessionManager) CreateCobaltSession(userID int64, cobaltResponse 
 		expiresAt: time.Now().Add(m.ttl),
 	}
 
-	return id
+	return id, nil
 }
 func (m *PickerSessionManager) GetCobaltPickerView(sessionID string, userID int64) (CobaltPickerView, error) {
 	return m.withCobaltSessionView(sessionID, userID, func(s *pickerSession) error {
@@ -78,7 +81,7 @@ func (m *PickerSessionManager) ConsumeSelectedCobaltOptions(sessionID string, us
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	s, err := m.validateSessionLocked(sessionID, userID)
+	s, err := m.validateSessionLocked(sessionID, userID, PickerSessionTypeCobalt)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +106,7 @@ func (m *PickerSessionManager) withCobaltSessionView(sessionID string, userID in
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	s, err := m.validateSessionLocked(sessionID, userID)
+	s, err := m.validateSessionLocked(sessionID, userID, PickerSessionTypeCobalt)
 	if err != nil {
 		return CobaltPickerView{}, err
 	}

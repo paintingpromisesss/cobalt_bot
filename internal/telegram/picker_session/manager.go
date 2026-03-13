@@ -2,6 +2,8 @@ package pickersession
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"sync"
 	"time"
 )
@@ -9,7 +11,6 @@ import (
 type PickerSessionManager struct {
 	sessions map[string]*pickerSession
 	mu       sync.Mutex
-	seq      uint64
 	ttl      time.Duration
 }
 
@@ -32,11 +33,11 @@ func NewPickerSessionManager(ctx context.Context, ttl time.Duration, cleanupInte
 	return m
 }
 
-func (m *PickerSessionManager) DeleteSession(sessionID string, userID int64) error {
+func (m *PickerSessionManager) DeleteSession(sessionID string, userID int64, sessionType PickerSessionType) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	_, err := m.validateSessionLocked(sessionID, userID)
+	_, err := m.validateSessionLocked(sessionID, userID, sessionType)
 	if err != nil {
 		return err
 	}
@@ -67,7 +68,7 @@ func (m *PickerSessionManager) startCleanup(ctx context.Context, cleanupInterval
 }
 
 // validateSession func must be called with m.mu locked
-func (m *PickerSessionManager) validateSessionLocked(sessionID string, userID int64) (*pickerSession, error) {
+func (m *PickerSessionManager) validateSessionLocked(sessionID string, userID int64, sessionType PickerSessionType) (*pickerSession, error) {
 	session, ok := m.sessions[sessionID]
 	if !ok {
 		return nil, ErrSessionNotFound
@@ -82,5 +83,30 @@ func (m *PickerSessionManager) validateSessionLocked(sessionID string, userID in
 		return nil, ErrSessionExpired
 	}
 
+	if session.sessionType != sessionType {
+		return nil, ErrWrongSessionType
+	}
+
 	return session, nil
+}
+
+// newUniqueSessionIDLocked func must be called with m.mu locked
+func (m *PickerSessionManager) newUniqueSessionIDLocked() (string, error) {
+	for {
+		id, err := newSessionID()
+		if err != nil {
+			return "", err
+		}
+		if _, exists := m.sessions[id]; !exists {
+			return id, nil
+		}
+	}
+}
+
+func newSessionID() (string, error) {
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(buf), nil
 }
