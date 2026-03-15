@@ -57,43 +57,12 @@ func (s *FileSender) buildMedia(filePath, fileName, detectedMIME string) (any, f
 			File: file,
 		}, cleanup
 	case strings.HasPrefix(mime, "video/"):
-		streamablePath, err := remuxStreamableMP4(filePath, s.ffmpegTimeout)
-		if err != nil {
-			s.log.Debug("video remux failed, sending original file", zap.String("path", filePath), zap.Error(err))
-			streamablePath = filePath
-		} else {
-			cleanup = chainCleanup(cleanup, func() {
-				cleanupFile(streamablePath)
-			})
-			file = tele.FromDisk(streamablePath)
-		}
-
 		video := &tele.Video{
 			File:      file,
 			FileName:  fileName,
 			MIME:      detectedMIME,
 			Streaming: true,
 		}
-		meta, err := probeVideoMetadata(streamablePath, s.ffprobeTimeout)
-		if err != nil {
-			s.log.Debug("video probe failed, sending without explicit metadata", zap.String("path", streamablePath), zap.Error(err))
-			return video, cleanup
-		}
-
-		video.Width = meta.Width
-		video.Height = meta.Height
-		video.Duration = meta.Duration
-
-		thumbPath, err := generateVideoThumbnail(streamablePath, meta.Duration, s.ffmpegTimeout)
-		if err != nil {
-			s.log.Debug("video thumbnail generation failed", zap.String("path", streamablePath), zap.Error(err))
-			return video, cleanup
-		}
-
-		video.Thumbnail = &tele.Photo{File: tele.FromDisk(thumbPath)}
-		cleanup = chainCleanup(cleanup, func() {
-			cleanupFile(thumbPath)
-		})
 
 		return video, cleanup
 	case strings.HasPrefix(mime, "audio/"):
@@ -108,15 +77,5 @@ func (s *FileSender) buildMedia(filePath, fileName, detectedMIME string) (any, f
 			FileName: fileName,
 			MIME:     detectedMIME,
 		}, cleanup
-	}
-}
-
-func chainCleanup(cleanups ...func()) func() {
-	return func() {
-		for _, cleanup := range cleanups {
-			if cleanup != nil {
-				cleanup()
-			}
-		}
 	}
 }

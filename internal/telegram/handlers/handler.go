@@ -56,6 +56,7 @@ func NewHandler(appCtx context.Context, requestTimeout time.Duration, downloadTi
 func (h *Handler) RegisterHandlers() error {
 	h.tb.Bot.Handle("/start", h.handleStart)
 	h.tb.Bot.Handle(tele.OnText, h.handleMessage)
-	h.tb.Bot.Handle(&tele.Btn{Unique: PickerButtonUnique}, h.handlePickerCallback)
+	h.tb.Bot.Handle(&tele.Btn{Unique: CobaltPickerButtonUnique}, h.handleCobaltPickerCallback)
+	h.tb.Bot.Handle(&tele.Btn{Unique: YtDLPPickerButtonUnique}, h.handleYtDLPPickerCallback)
 	return nil
 }

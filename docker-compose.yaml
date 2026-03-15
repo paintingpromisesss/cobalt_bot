@@ -68,20 +68,8 @@ services:
     container_name: tg_bot
     restart: unless-stopped
     init: true
-    environment:
-      TELEGRAM_BOT_TOKEN: ${TG_BOT_TOKEN}
-      TELEGRAM_BOT_API_URL: http://mihomo:8081
-      COBALT_BASE_URL: ${TG_BOT_COBALT_BASE_URL}
-      MAX_FILE_BYTES: ${TG_BOT_MAX_FILE_BYTES}
-      DB_PATH: ${TG_BOT_DB_PATH}
-      TEMP_DIR: ${TG_BOT_TEMP_DIR}
-      REQUEST_TIMEOUT: ${TG_BOT_REQUEST_TIMEOUT}
-      DOWNLOAD_TIMEOUT: ${TG_BOT_DOWNLOAD_TIMEOUT}
-      FFPROBE_TIMEOUT: ${TG_BOT_FFPROBE_TIMEOUT}
-      FFMPEG_TIMEOUT: ${TG_BOT_FFMPEG_TIMEOUT}
-      PICKER_SESSION_MANAGER_TTL: ${TG_BOT_PICKER_SESSION_MANAGER_TTL}
-      PICKER_SESSION_MANAGER_CLEANUP_INTERVAL: ${TG_BOT_PICKER_SESSION_MANAGER_CLEANUP_INTERVAL}
-      LOG_LEVEL: ${TG_BOT_LOG_LEVEL}
+    env_file:
+      - .env
     volumes:
       - ./data:/app/data
       - ./tmp:/app/tmp

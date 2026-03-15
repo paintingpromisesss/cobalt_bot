@@ -2,32 +2,24 @@ package handlers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/paintingpromisesss/cobalt_bot/internal/cobalt"
 	"github.com/paintingpromisesss/cobalt_bot/internal/downloader"
-	"github.com/paintingpromisesss/cobalt_bot/internal/telegram"
 	pickersession "github.com/paintingpromisesss/cobalt_bot/internal/telegram/picker_session"
 	tele "gopkg.in/telebot.v4"
 )
 
 const (
-	NeutralIndicator    = "⬜"
-	SelectedIndicator   = "✅"
-	UnselectedIndicator = "❌"
-	DownloadIndicator   = "⬇️"
-
 	ToggleAction    = "toggle"
 	SelectAllAction = "select_all"
 	ClearAllAction  = "clear_all"
 	DownloadAction  = "download"
 	CancelAction    = "cancel"
 
-	PickerButtonUnique = "picker_button"
-	maxAlbumFiles      = 10
+	maxAlbumFiles = 10
 )
 
 // handleMessageStatusPicker реализует обработку статуса Picker от Cobalt, который возвращает список объектов для скачивания.
@@ -132,21 +124,21 @@ func buildPickerMessage(sessionID string, pickerView *pickersession.CobaltPicker
 			indicator = SelectedIndicator
 			selected++
 		}
-		payload := encodePickerCallbackData(ToggleAction, sessionID, i)
-		rows = append(rows, markup.Row(markup.Data(indicator+" "+option.Label, PickerButtonUnique, payload)))
+		payload := encodeCobaltPickerCallbackData(ToggleAction, sessionID, i)
+		rows = append(rows, markup.Row(markup.Data(indicator+" "+option.Label, CobaltPickerButtonUnique, payload)))
 
 	}
 
 	if selected > 0 {
 		rows = append(rows, markup.Row(
-			markup.Data(UnselectedIndicator+" Очистить выбор", PickerButtonUnique, encodePickerCallbackData(ClearAllAction, sessionID, -1)),
-			markup.Data(DownloadIndicator+" Скачать", PickerButtonUnique, encodePickerCallbackData(DownloadAction, sessionID, -1)),
+			markup.Data(UnselectedIndicator+" Очистить выбор", CobaltPickerButtonUnique, encodeCobaltPickerCallbackData(ClearAllAction, sessionID, -1)),
+			markup.Data(DownloadIndicator+" Скачать", CobaltPickerButtonUnique, encodeCobaltPickerCallbackData(DownloadAction, sessionID, -1)),
 		))
 	} else {
-		rows = append(rows, markup.Row(markup.Data(SelectedIndicator+" Выбрать все", PickerButtonUnique, encodePickerCallbackData(SelectAllAction, sessionID, -1))))
+		rows = append(rows, markup.Row(markup.Data(SelectedIndicator+" Выбрать все", CobaltPickerButtonUnique, encodeCobaltPickerCallbackData(SelectAllAction, sessionID, -1))))
 	}
 
-	rows = append(rows, markup.Row(markup.Data(UnselectedIndicator+" Отменить", PickerButtonUnique, encodePickerCallbackData(CancelAction, sessionID, -1))))
+	rows = append(rows, markup.Row(markup.Data(UnselectedIndicator+" Отменить", CobaltPickerButtonUnique, encodeCobaltPickerCallbackData(CancelAction, sessionID, -1))))
 
 	markup.Inline(rows...)
 
@@ -168,62 +160,9 @@ func buildAlbumItem(filepath, filename, detectedMIME string) tele.Inputtable {
 	}
 }
 
-func encodePickerCallbackData(action, sessionID string, optionIdx int) string {
+func encodeCobaltPickerCallbackData(action, sessionID string, optionIdx int) string {
 	if optionIdx >= 0 {
 		return action + ":" + sessionID + ":" + strconv.Itoa(optionIdx)
 	}
 	return action + ":" + sessionID
-}
-
-func parsePickerCallbackData(data string) (action, sessionID string, optionIdx int, err error) {
-	parts := strings.Split(strings.TrimSpace(data), ":")
-	if len(parts) < 2 || len(parts) > 3 {
-		return "", "", 0, fmt.Errorf("invalid callback data format")
-	}
-
-	action, sessionID, optionIdx = parts[0], parts[1], -1
-	if len(parts) == 3 {
-		idx, convErr := strconv.Atoi(parts[2])
-		if convErr != nil {
-			return "", "", 0, fmt.Errorf("invalid option index: %v", convErr)
-		}
-		optionIdx = idx
-	}
-	return action, sessionID, optionIdx, nil
-}
-
-func handlePickerError(c tele.Context, statusMsg *tele.Message, err error) error {
-	switch {
-	case errors.Is(err, pickersession.ErrSessionExpired):
-		_, err := c.Bot().Edit(statusMsg, "Время сессии истекло. Пожалуйста, попробуйте отправить ссылку заново.")
-		return err
-	case errors.Is(err, pickersession.ErrNoOptionsSelected):
-		_, err := c.Bot().Edit(statusMsg, "Вы не выбрали ни одного объекта для загрузки. Пожалуйста, выберите хотя бы один и попробуйте снова.")
-		return err
-	default:
-		_, err := c.Bot().Edit(statusMsg, pickerErrorToText(err))
-		return err
-	}
-}
-
-func handlePickerCallbackError(c tele.Context, statusMsg *tele.Message, err error) error {
-	if editErr := handlePickerError(c, statusMsg, err); editErr != nil {
-		return editErr
-	}
-
-	return telegram.MarkHandled(err)
-}
-
-func pickerErrorToText(err error) string {
-	errorText := "Произошла ошибка при обработке вашего запроса: " + err.Error()
-	switch {
-	case errors.Is(err, context.DeadlineExceeded):
-		errorText = "Не удалось завершить обработку вовремя. Попробуйте еще раз."
-	case errors.Is(err, downloader.ErrFileTooLarge):
-		errorText = "Файл слишком большой для отправки."
-	case errors.Is(err, downloader.ErrEmptyFile):
-		errorText = "Скачанный файл оказался пустым. Попробуйте повторить позже."
-	}
-
-	return errorText
 }

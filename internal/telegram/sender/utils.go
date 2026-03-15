@@ -19,6 +19,8 @@ type mergeMode string
 const (
 	mergeModeCopy      mergeMode = "copy"
 	mergeModeTranscode mergeMode = "transcode"
+
+	mergedMediaMIME = "video/mp4"
 )
 
 var (
@@ -31,6 +33,7 @@ type mergedMediaMetadata struct {
 	Width      int
 	Height     int
 	Duration   int
+	MIME       string
 	VideoCodec string
 	AudioCodec string
 }
@@ -65,13 +68,13 @@ type ffprobeFormat struct {
 	Duration string `json:"duration"`
 }
 
-func mergeStreamsToStreamableMP4(videoPath, audioPath string, timeout time.Duration) (string, mergedMediaMetadata, error) {
-	videoProbe, err := probeMediaFile(videoPath, timeout)
+func (s *FileSender) MergeStreamsToStreamableMP4(videoPath, audioPath string) (string, mergedMediaMetadata, error) {
+	videoProbe, err := probeMediaFile(videoPath, s.ffprobeTimeout)
 	if err != nil {
 		return "", mergedMediaMetadata{}, fmt.Errorf("probe video file: %w", err)
 	}
 
-	audioProbe, err := probeMediaFile(audioPath, timeout)
+	audioProbe, err := probeMediaFile(audioPath, s.ffprobeTimeout)
 	if err != nil {
 		return "", mergedMediaMetadata{}, fmt.Errorf("probe audio file: %w", err)
 	}
@@ -114,11 +117,11 @@ func mergeStreamsToStreamableMP4(videoPath, audioPath string, timeout time.Durat
 		outputPath,
 	)
 
-	if err := runFFmpeg(timeout, outputPath, args...); err != nil {
+	if err := runFFmpeg(s.ffmpegTimeout, outputPath, args...); err != nil {
 		return "", mergedMediaMetadata{}, err
 	}
 
-	mergedProbe, err := probeMediaFile(outputPath, timeout)
+	mergedProbe, err := probeMediaFile(outputPath, s.ffprobeTimeout)
 	if err != nil {
 		cleanupFile(outputPath)
 		return "", mergedMediaMetadata{}, fmt.Errorf("probe merged file: %w", err)
@@ -222,6 +225,7 @@ func buildMergedMediaMetadata(size int64, probe mediaProbe) (mergedMediaMetadata
 		Duration:   duration,
 		VideoCodec: videoStream.CodecName,
 		AudioCodec: audioStream.CodecName,
+		MIME:       mergedMediaMIME,
 	}, nil
 }
 

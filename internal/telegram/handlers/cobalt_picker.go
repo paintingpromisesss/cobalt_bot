@@ -2,6 +2,9 @@ package handlers
 
 import (
 	"context"
+	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/paintingpromisesss/cobalt_bot/internal/telegram"
 	pickersession "github.com/paintingpromisesss/cobalt_bot/internal/telegram/picker_session"
@@ -9,7 +12,7 @@ import (
 	tele "gopkg.in/telebot.v4"
 )
 
-func (h *Handler) handlePickerCallback(c tele.Context) error {
+func (h *Handler) handleCobaltPickerCallback(c tele.Context) error {
 	if err := c.Respond(); err != nil {
 		h.logger.Warn("failed to respond to picker callback", zap.Error(err))
 	}
@@ -17,7 +20,7 @@ func (h *Handler) handlePickerCallback(c tele.Context) error {
 	userID := c.Sender().ID
 	statusMsg := c.Message()
 
-	action, sessionID, optionIdx, err := parsePickerCallbackData(c.Data())
+	action, sessionID, optionIdx, err := parseCobaltPickerCallbackData(c.Data())
 	if err != nil {
 		h.logger.Warn("failed to parse picker callback data", zap.Int64("user_id", userID), zap.String("data", c.Data()), zap.Error(err))
 
@@ -74,4 +77,21 @@ func (h *Handler) handlePickerCallback(c tele.Context) error {
 		_, err := c.Bot().Edit(statusMsg, "Неизвестное действие. Пожалуйста, попробуйте снова.")
 		return err
 	}
+}
+
+func parseCobaltPickerCallbackData(data string) (action, sessionID string, optionIdx int, err error) {
+	parts := strings.Split(strings.TrimSpace(data), ":")
+	if len(parts) < 2 || len(parts) > 3 {
+		return "", "", 0, fmt.Errorf("invalid callback data format")
+	}
+
+	action, sessionID, optionIdx = parts[0], parts[1], -1
+	if len(parts) == 3 {
+		idx, convErr := strconv.Atoi(parts[2])
+		if convErr != nil {
+			return "", "", 0, fmt.Errorf("invalid option index: %v", convErr)
+		}
+		optionIdx = idx
+	}
+	return action, sessionID, optionIdx, nil
 }

@@ -31,6 +31,11 @@ type Downloader struct {
 	maxFileBytes int64
 }
 
+type MultiDownloadFiles struct {
+	URL      string
+	Filename string
+}
+
 func NewDownloader(timeout time.Duration, tempDir string, maxFileBytes int64) *Downloader {
 	return &Downloader{
 		httpClient:   httpclient.New(timeout),
@@ -100,6 +105,18 @@ func (d *Downloader) Download(ctx context.Context, fileURL, filename string) (Do
 		ContentType:  responseHeaders.Get("Content-Type"),
 		DetectedMIME: detectMIME(filePath, responseHeaders.Get("Content-Type"), filename),
 	}, nil
+}
+
+func (d *Downloader) MultiDownload(ctx context.Context, files []MultiDownloadFiles) ([]DownloadResult, error) {
+	results := make([]DownloadResult, 0, len(files))
+	for _, file := range files {
+		result, err := d.Download(ctx, file.URL, file.Filename)
+		if err != nil {
+			return results, fmt.Errorf("download file %s: %w", file.Filename, err)
+		}
+		results = append(results, result)
+	}
+	return results, nil
 }
 
 func detectMIME(filePath, contentTypeHeader, filename string) string {
