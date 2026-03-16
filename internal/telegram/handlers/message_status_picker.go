@@ -9,6 +9,7 @@ import (
 	"github.com/paintingpromisesss/cobalt_bot/internal/cobalt"
 	"github.com/paintingpromisesss/cobalt_bot/internal/downloader"
 	pickersession "github.com/paintingpromisesss/cobalt_bot/internal/telegram/picker_session"
+	"go.uber.org/zap"
 	tele "gopkg.in/telebot.v4"
 )
 
@@ -83,6 +84,12 @@ func (h *Handler) DownloadAndSendSelectedOptions(c tele.Context, statusMsg *tele
 		if err := h.sender.SendFile(c, result.Path, result.Filename, result.DetectedMIME, user); err != nil {
 			return err
 		}
+		h.logger.Info(
+			"download session completed",
+			zap.Int64("user_id", userID),
+			zap.String("username", c.Sender().Username),
+			zap.Int("files_sent", 1),
+		)
 		return nil
 	}
 
@@ -109,6 +116,12 @@ func (h *Handler) DownloadAndSendSelectedOptions(c tele.Context, statusMsg *tele
 	if _, err := c.Bot().Edit(statusMsg, fmt.Sprintf("Готово. Отправлено файлов: %d.", len(downloadResults))); err != nil {
 		return err
 	}
+	h.logger.Info(
+		"download session completed",
+		zap.Int64("user_id", userID),
+		zap.String("username", c.Sender().Username),
+		zap.Int("files_sent", len(downloadResults)),
+	)
 	return nil
 }
 

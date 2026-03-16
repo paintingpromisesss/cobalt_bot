@@ -115,6 +115,13 @@ func (h *Handler) DownloadAndSendYtDLPOption(c tele.Context, downloadCtx context
 		if err := h.sender.SendFile(c, result.Path, result.Filename, result.DetectedMIME, user); err != nil {
 			return err
 		}
+		h.logger.Info(
+			"download session completed",
+			zap.Int64("user_id", userID),
+			zap.String("username", c.Sender().Username),
+			zap.String("format", option.DisplayName),
+			zap.Int("files_sent", 1),
+		)
 		return nil
 	}
 
@@ -165,6 +172,13 @@ func (h *Handler) DownloadAndSendYtDLPOption(c tele.Context, downloadCtx context
 		if err := h.sender.SendFile(c, mergedMP4Path, option.DisplayName+".mp4", mergedMetadata.MIME, user); err != nil {
 			return err
 		}
+		h.logger.Info(
+			"download session completed",
+			zap.Int64("user_id", userID),
+			zap.String("username", c.Sender().Username),
+			zap.String("format", option.DisplayName),
+			zap.Int("files_sent", 1),
+		)
 		return nil
 	}
 	return nil
@@ -177,8 +191,10 @@ func parseYtDLPPickerCallbackData(data string) (action, sessionID string, tab pi
 	}
 
 	action, sessionID, tab, optionIdx = parts[0], parts[1], pickersession.YtDLPPickerTabNone, -1
-	if len(parts) == 4 {
+	if len(parts) >= 3 {
 		tab = pickersession.YtDLPPickerTab(parts[2])
+	}
+	if len(parts) == 4 {
 		idx, convErr := strconv.Atoi(parts[3])
 		if convErr != nil {
 			return "", "", pickersession.YtDLPPickerTabNone, -1, fmt.Errorf("invalid option index: %v", convErr)

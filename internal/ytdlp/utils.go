@@ -22,18 +22,18 @@ func (c *Client) buildGetMetadataArgs(url string, ClientType *YtDLPClient) []str
 
 	if c.MaxDurationSecs > 0 {
 		if !c.CurrentlyLiveAvailable {
-			args = append(args, "--match-filter duration <= "+fmt.Sprint(c.MaxDurationSecs)+" & !is_live")
+			args = append(args, "--match-filter", "duration <= "+fmt.Sprint(c.MaxDurationSecs)+" & !is_live")
 		} else {
-			args = append(args, "--match-filter duration <= "+fmt.Sprint(c.MaxDurationSecs))
+			args = append(args, "--match-filter", "duration <= "+fmt.Sprint(c.MaxDurationSecs))
 		}
 	}
 
 	if c.MaxFileBytes > 0 {
-		args = append(args, "--max-filesize "+fmt.Sprint(c.MaxFileBytes))
+		args = append(args, "--max-filesize", fmt.Sprint(c.MaxFileBytes))
 	}
 
 	if ClientType != nil {
-		args = append(args, "--extractor-args "+fmt.Sprintf("youtube:player_client=%s", *ClientType))
+		args = append(args, "--extractor-args", fmt.Sprintf("youtube:player_client=%s", *ClientType))
 	}
 
 	args = append(args, url)

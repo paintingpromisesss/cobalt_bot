@@ -11,15 +11,14 @@ import (
 )
 
 const (
-	YtDLPActionTab      = "tab"
+	YtDLPActionTab      = "select_tab"
 	YtDLPActionChoose   = "choose"
 	YtDLPActionDownload = "download"
 	YtDLPActionCancel   = "cancel"
 	YtDLPActionBack     = "back"
 )
 
-// TODO: implement this
-func (h *Handler) handleYoutubeVideoRequest(c tele.Context, downloadCtx context.Context, statusMsg *tele.Message, user tele.Recipient, userID int64, url string, meta *ytdlp.Metadata) error {
+func (h *Handler) handleYoutubeVideoRequest(c tele.Context, statusMsg *tele.Message, userID int64, meta *ytdlp.Metadata) error {
 	pickerSessionID, err := h.pickerSessionManager.CreateYtDLPSession(userID, meta)
 	if err != nil {
 		return err
@@ -79,7 +78,7 @@ func buildYtDLPOptionsMessage(sessionID string, pickerView *pickersession.YtDLPP
 
 	markup.Inline(rows...)
 
-	message := fmt.Sprintf("Выберите формат скачивания для: %s \n (тип: %s)", pickerView.ContentName, pickerView.ActiveTab)
+	message := fmt.Sprintf("Выберите формат скачивания для: %s\n (тип: %s)", pickerView.ContentName, pickerView.ActiveTab)
 
 	return markup, message
 }
@@ -102,7 +101,7 @@ func buildYtDLPConfirmationMessage(sessionID string, option pickersession.YtDLPP
 
 	markup.Inline(rows...)
 
-	message := fmt.Sprintf("Выбранный формат: %s \n Размер: %s \n Скачать?", option.DisplayName, formatFileSize(option.FileSize))
+	message := fmt.Sprintf("Выбранный формат: %s\n Размер: %s\n Скачать?", option.DisplayName, formatFileSize(option.FileSize))
 
 	return markup, message
 }

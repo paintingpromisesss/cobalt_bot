@@ -9,13 +9,7 @@ require (
 	gopkg.in/telebot.v4 v4.0.0-beta.7
 )
 
-require (
-	github.com/ProtonMail/go-crypto v1.4.0 // indirect
-	github.com/cloudflare/circl v1.6.3 // indirect
-	github.com/lrstanley/go-ytdlp v1.3.3 // indirect
-	github.com/ulikunitz/xz v0.5.15 // indirect
-	golang.org/x/crypto v0.48.0 // indirect
-)
+require github.com/stretchr/testify v1.11.1 // indirect
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
