@@ -44,7 +44,7 @@ func NewDownloader(timeout time.Duration, tempDir string, maxFileBytes int64) *D
 	}
 }
 
-func (d *Downloader) Download(ctx context.Context, fileURL, filename string) (DownloadResult, error) {
+func (d *Downloader) Download(ctx context.Context, fileURL, filename string, requestHeaders *http.Header) (DownloadResult, error) {
 	if strings.TrimSpace(fileURL) == "" {
 		return DownloadResult{}, errors.New("url is required")
 	}
@@ -62,22 +62,22 @@ func (d *Downloader) Download(ctx context.Context, fileURL, filename string) (Do
 		return DownloadResult{}, fmt.Errorf("create temp dir: %w", err)
 	}
 
-	file, err := os.CreateTemp(d.tempDir, "cobalt-*")
+	file, err := os.CreateTemp(d.tempDir, "temp-")
 	if err != nil {
 		return DownloadResult{}, fmt.Errorf("create temp file: %w", err)
 	}
 	filePath := file.Name()
 
 	cleanup := func() {
-		_ = file.Close()
+		_ = closeFile(file)
 		_ = os.Remove(filePath)
 	}
-
 	var responseHeaders http.Header
 	written, err := d.httpClient.Download(ctx, httpclient.DownloadOptions{
 		Method:          http.MethodGet,
 		URL:             fileURL,
 		ResponseHeaders: &responseHeaders,
+		RequestHeaders:  requestHeaders,
 		Output:          file,
 		MaxBytes:        d.maxFileBytes,
 	})
@@ -107,10 +107,10 @@ func (d *Downloader) Download(ctx context.Context, fileURL, filename string) (Do
 	}, nil
 }
 
-func (d *Downloader) MultiDownload(ctx context.Context, files []MultiDownloadFiles) ([]DownloadResult, error) {
+func (d *Downloader) MultiDownload(ctx context.Context, files []MultiDownloadFiles, requestHeaders *http.Header) ([]DownloadResult, error) {
 	results := make([]DownloadResult, 0, len(files))
 	for _, file := range files {
-		result, err := d.Download(ctx, file.URL, file.Filename)
+		result, err := d.Download(ctx, file.URL, file.Filename, requestHeaders)
 		if err != nil {
 			return results, fmt.Errorf("download file %s: %w", file.Filename, err)
 		}
@@ -127,7 +127,9 @@ func detectMIME(filePath, contentTypeHeader, filename string) string {
 
 	var sniffMIME string
 	if file, err := os.Open(filePath); err == nil {
-		defer file.Close()
+		defer func() {
+			_ = closeFile(file)
+		}()
 		buf := make([]byte, 512)
 		if n, readErr := file.Read(buf); readErr == nil || n > 0 {
 			sniffMIME = normalizeMIME(http.DetectContentType(buf[:n]))
@@ -160,4 +162,11 @@ func normalizeMIME(value string) string {
 
 	parts := strings.Split(value, ";")
 	return strings.TrimSpace(parts[0])
+}
+
+func closeFile(file *os.File) error {
+	if file == nil {
+		return nil
+	}
+	return file.Close()
 }

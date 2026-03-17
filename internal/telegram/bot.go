@@ -3,6 +3,7 @@ package telegram
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
 	"go.uber.org/zap"
@@ -14,10 +15,13 @@ type Bot struct {
 	Log *zap.Logger
 }
 
-func New(token string, apiURL string, log *zap.Logger) (*Bot, error) {
+func New(token string, apiURL string, clientTimeout time.Duration, log *zap.Logger) (*Bot, error) {
 	tb, err := tele.NewBot(tele.Settings{
 		Token: token,
 		URL:   apiURL,
+		Client: &http.Client{
+			Timeout: clientTimeout,
+		},
 		Poller: &tele.LongPoller{
 			Timeout: 10 * time.Second,
 		},

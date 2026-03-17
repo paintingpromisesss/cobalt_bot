@@ -94,7 +94,7 @@ func (h *Handler) handleMessage(c tele.Context) error {
 			zap.Error(err),
 		)
 
-		if _, err := c.Bot().Edit(statusMsg, pickerErrorToText(err)); err != nil {
+		if _, err := c.Bot().Edit(statusMsg, h.pickerErrorToText(err)); err != nil {
 			h.logger.Error("failed to edit status message with error", zap.Int64("user_id", userID), zap.String("username", username), zap.Error(err))
 			return err
 		}
@@ -170,8 +170,13 @@ func (h *Handler) processYoutubeRequest(c tele.Context, downloadCtx, metaCtx con
 			return "", err
 		}
 		return sessionResultAwaitingSelection, nil
-	case ytdlp.YoutubeMusic, ytdlp.YoutubeShorts:
-		if err := h.handleYoutubeMusicAndShortsRequest(c, downloadCtx, statusMsg, user, userID, url, meta); err != nil {
+	case ytdlp.YoutubeMusic:
+		if err := h.handleYoutubeMusicRequest(c, downloadCtx, statusMsg, user, meta); err != nil {
+			return "", err
+		}
+		return sessionResultCompleted, nil
+	case ytdlp.YoutubeShorts:
+		if err := h.handleYoutubeShortsRequest(c, downloadCtx, statusMsg, user, meta); err != nil {
 			return "", err
 		}
 		return sessionResultCompleted, nil

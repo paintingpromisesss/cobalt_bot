@@ -55,7 +55,7 @@ func (h *Handler) DownloadAndSendSelectedOptions(c tele.Context, statusMsg *tele
 
 	downloadResults := make([]downloader.DownloadResult, 0, len(options))
 	for _, option := range options {
-		result, err := h.downloader.Download(downloadCtx, option.URL, option.Filename)
+		result, err := h.downloader.Download(downloadCtx, option.URL, option.Filename, nil)
 		if err != nil {
 			for _, obj := range downloadResults {
 				cleanupTempFile(h.logger, obj.Path)

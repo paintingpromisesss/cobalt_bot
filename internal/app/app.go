@@ -53,6 +53,7 @@ func Run(cfg config.Config) error {
 		zap.String("temp_dir", cfg.Storage.TempDir),
 		zap.Duration("request_timeout", cfg.Timeouts.Request),
 		zap.Duration("download_timeout", cfg.Timeouts.Download),
+		zap.Duration("telegram_send_timeout", cfg.Timeouts.TelegramSend),
 		zap.Duration("ffprobe_timeout", cfg.Timeouts.FFprobe),
 		zap.Duration("ffmpeg_timeout", cfg.Timeouts.FFmpeg),
 		zap.String("log_level", cfg.Logging.Level),
@@ -61,7 +62,7 @@ func Run(cfg config.Config) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
-	tgBot, err := telegram.New(cfg.Telegram.BotToken, cfg.Telegram.BotAPIURL, log)
+	tgBot, err := telegram.New(cfg.Telegram.BotToken, cfg.Telegram.BotAPIURL, cfg.Timeouts.TelegramSend, log)
 	if err != nil {
 		log.Error("init telegram bot failed", zap.Error(err))
 		return err
@@ -89,6 +90,7 @@ func Run(cfg config.Config) error {
 		ctx,
 		cfg.Timeouts.Request,
 		cfg.Timeouts.Download,
+		cfg.YTDLP.MaxMediaDurationSeconds,
 		tgBot,
 		storage,
 		queueManager,

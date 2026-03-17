@@ -35,25 +35,25 @@ func (h *Handler) handleCobaltPickerCallback(c tele.Context) error {
 	case ToggleAction:
 		pickerView, err := h.pickerSessionManager.ToggleCobaltPickerOption(sessionID, userID, optionIdx)
 		if err != nil {
-			return handlePickerCallbackError(c, statusMsg, err)
+			return h.handlePickerCallbackError(c, statusMsg, err)
 		}
 		return h.renderPickerKeyboard(c, statusMsg, sessionID, &pickerView)
 	case SelectAllAction:
 		pickerView, err := h.pickerSessionManager.MarkAllCobaltPickerOptions(sessionID, userID, true)
 		if err != nil {
-			return handlePickerCallbackError(c, statusMsg, err)
+			return h.handlePickerCallbackError(c, statusMsg, err)
 		}
 		return h.renderPickerKeyboard(c, statusMsg, sessionID, &pickerView)
 	case ClearAllAction:
 		pickerView, err := h.pickerSessionManager.MarkAllCobaltPickerOptions(sessionID, userID, false)
 		if err != nil {
-			return handlePickerCallbackError(c, statusMsg, err)
+			return h.handlePickerCallbackError(c, statusMsg, err)
 		}
 		return h.renderPickerKeyboard(c, statusMsg, sessionID, &pickerView)
 	case DownloadAction:
 		options, err := h.pickerSessionManager.ConsumeSelectedCobaltOptions(sessionID, userID)
 		if err != nil {
-			return handlePickerCallbackError(c, statusMsg, err)
+			return h.handlePickerCallbackError(c, statusMsg, err)
 		}
 
 		err = h.queueManager.Run(userID, func() error {
@@ -63,13 +63,13 @@ func (h *Handler) handleCobaltPickerCallback(c tele.Context) error {
 		})
 
 		if err != nil {
-			return handlePickerCallbackError(c, statusMsg, err)
+			return h.handlePickerCallbackError(c, statusMsg, err)
 		}
 		return nil
 	case CancelAction:
 		err := h.pickerSessionManager.DeleteSession(sessionID, userID, pickersession.PickerSessionTypeCobalt)
 		if err != nil {
-			return handlePickerCallbackError(c, statusMsg, err)
+			return h.handlePickerCallbackError(c, statusMsg, err)
 		}
 		_, err = c.Bot().Edit(statusMsg, "Сессия выбора отменена. Если хотите скачать что-то ещё, просто отправьте ссылку.")
 		return err

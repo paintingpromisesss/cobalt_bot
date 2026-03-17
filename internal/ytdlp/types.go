@@ -1,6 +1,9 @@
 package ytdlp
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type MediaType string
 type FormatNote string
@@ -174,23 +177,50 @@ func (f Format) GetRoundedVBR() int {
 }
 
 func (f Format) GetDisplayName(audioFormat, videoFormat *Format) string {
-	if f.FormatNote != "" {
-		return f.FormatNote
+	if audioFormat != nil && videoFormat != nil {
+		return fmt.Sprintf(
+			"%dx%d [%s] [%s] + %dkbps [%s] [%s] (merged)",
+			videoFormat.Width,
+			videoFormat.Height,
+			formatCodecLabel(videoFormat.VCodec),
+			videoFormat.FormatID,
+			audioFormat.GetRoundedABR(),
+			formatCodecLabel(audioFormat.ACodec),
+			audioFormat.FormatID,
+		)
 	}
 
 	if f.IsAudio() && !f.IsVideo() {
-		return fmt.Sprintf("Audio %dkbps", f.GetRoundedABR())
+		return fmt.Sprintf("%dkbps [%s] [%s]", f.GetRoundedABR(), formatCodecLabel(f.ACodec), f.FormatID)
 	}
 	if f.IsVideo() && !f.IsAudio() {
-		return fmt.Sprintf("Video %dx%d", f.Width, f.Height)
+		return fmt.Sprintf("%dx%d [%s] [%s]", f.Width, f.Height, formatCodecLabel(f.VCodec), f.FormatID)
 	}
 
 	if f.IsAudio() && f.IsVideo() {
-		return fmt.Sprintf("Video %dx%d + Audio %dkbps (muxed)", f.Width, f.Height, f.GetRoundedABR())
+		return fmt.Sprintf(
+			"%dx%d [%s] + %dkbps [%s] (muxed) [%s]",
+			f.Width,
+			f.Height,
+			formatCodecLabel(f.VCodec),
+			f.GetRoundedABR(),
+			formatCodecLabel(f.ACodec),
+			f.FormatID,
+		)
 	}
 
-	if audioFormat != nil && videoFormat != nil {
-		return fmt.Sprintf("Video %dx%d + Audio %dkbps (merged)", videoFormat.Width, videoFormat.Height, audioFormat.GetRoundedABR())
-	}
 	return f.FormatID
+}
+
+func formatCodecLabel(codec string) string {
+	value := strings.TrimSpace(codec)
+	if value == "" || value == "none" {
+		return "unknown"
+	}
+
+	if idx := strings.Index(value, "."); idx > 0 {
+		return value[:idx]
+	}
+
+	return value
 }

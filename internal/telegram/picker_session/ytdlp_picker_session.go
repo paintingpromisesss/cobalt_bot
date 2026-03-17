@@ -18,15 +18,12 @@ const (
 
 type YtDLPPickerOption struct {
 	DisplayName  string
+	FormatID     string
 	ThumbnailURL string
-	AudioURL     string
-	VideoURL     string
-	MuxedURL     string
+	ContentURL   string
 	FileSize     int64
 	Duration     time.Duration
-	AudioFormat  ytdlp.Format
-	VideoFormat  ytdlp.Format
-	MuxedFormat  ytdlp.Format
+	Format       ytdlp.Format
 }
 
 type YtDLPPickerState struct {
@@ -45,12 +42,6 @@ type YtDLPPickerView struct {
 	ActiveTab   YtDLPPickerTab
 	Tabs        []YtDLPPickerTab
 	Options     []YtDLPPickerOption
-}
-
-type YtDLPURLs struct {
-	AudioURL *string
-	VideoURL *string
-	MuxedURL *string
 }
 
 type YtDLPURLType string
@@ -94,6 +85,10 @@ func (m *PickerSessionManager) GetYtDLPPickerView(sessionID string, userID int64
 
 func (m *PickerSessionManager) SetYtDLPActiveTab(sessionID string, userID int64, tab YtDLPPickerTab) (YtDLPPickerView, error) {
 	return m.withYtDLPSessionView(sessionID, userID, func(s *pickerSession) error {
+		if tab == YtDLPPickerTabNone {
+			s.ytdlp.ActiveTab = tab
+			return nil
+		}
 		options, ok := s.ytdlp.OptionsByTab[tab]
 		if !ok || len(options) == 0 {
 			return ErrInvalidYtDLPTab
@@ -202,6 +197,7 @@ func buildYtDLPPickerView(s *pickerSession) YtDLPPickerView {
 func ParseYtDLPMetadata(metadata *ytdlp.Metadata) map[YtDLPPickerTab][]YtDLPPickerOption {
 	optsByTab := make(map[YtDLPPickerTab][]YtDLPPickerOption)
 	thumbnailURL := metadata.Thumbnail
+	originalURL := metadata.OriginalURL
 
 	for _, format := range metadata.Formats {
 		tab := detectTabForFormat(format)
@@ -212,24 +208,14 @@ func ParseYtDLPMetadata(metadata *ytdlp.Metadata) map[YtDLPPickerTab][]YtDLPPick
 		option := YtDLPPickerOption{
 			DisplayName:  format.GetDisplayName(nil, nil),
 			ThumbnailURL: thumbnailURL,
+			ContentURL:   originalURL,
+			FormatID:     format.FormatID,
 			FileSize:     format.FileSize,
-			Duration:     time.Duration(metadata.Duration),
-		}
-
-		switch tab {
-		case YtDLPPickerTabAudioOnly:
-			option.AudioURL = format.URL
-			option.AudioFormat = format
-		case YtDLPPickerTabVideoOnly:
-			option.VideoURL = format.URL
-			option.VideoFormat = format
-		case YtDLPPickerTabAudioVideo:
-			option.MuxedURL = format.URL
-			option.MuxedFormat = format
+			Duration:     time.Duration(metadata.Duration) * time.Second,
+			Format:       format,
 		}
 
 		optsByTab[tab] = append(optsByTab[tab], option)
-
 	}
 
 	if len(metadata.RequestedDownloads) == 0 {
@@ -240,14 +226,12 @@ func ParseYtDLPMetadata(metadata *ytdlp.Metadata) map[YtDLPPickerTab][]YtDLPPick
 	if bestAudioFormat != nil {
 		for _, format := range optsByTab[YtDLPPickerTabVideoOnly] {
 			option := YtDLPPickerOption{
-				DisplayName:  format.VideoFormat.GetDisplayName(bestAudioFormat, &format.VideoFormat),
-				AudioURL:     bestAudioFormat.URL,
-				VideoURL:     format.VideoURL,
-				AudioFormat:  *bestAudioFormat,
-				VideoFormat:  format.VideoFormat,
+				DisplayName:  format.Format.GetDisplayName(bestAudioFormat, &format.Format),
+				ContentURL:   originalURL,
+				FormatID:     format.FormatID + "+" + bestAudioFormat.FormatID,
 				ThumbnailURL: thumbnailURL,
-				FileSize:     bestAudioFormat.FileSize + format.VideoFormat.FileSize,
-				Duration:     time.Duration(metadata.Duration),
+				FileSize:     bestAudioFormat.FileSize + format.FileSize,
+				Duration:     time.Duration(metadata.Duration) * time.Second,
 			}
 			optsByTab[YtDLPPickerTabAudioVideo] = append(optsByTab[YtDLPPickerTabAudioVideo], option)
 		}
@@ -279,63 +263,4 @@ func orderedYtDLPTabs() []YtDLPPickerTab {
 		YtDLPPickerTabAudioVideo,
 		YtDLPPickerTabSubtitles,
 	}
-}
-
-func (yt YtDLPPickerOption) GetURLsToDownload() YtDLPURLs {
-	urls := YtDLPURLs{
-		AudioURL: nil,
-		VideoURL: nil,
-		MuxedURL: nil,
-	}
-
-	if yt.AudioURL != "" {
-		urls.AudioURL = &yt.AudioURL
-	}
-	if yt.VideoURL != "" {
-		urls.VideoURL = &yt.VideoURL
-	}
-	if yt.MuxedURL != "" {
-		urls.MuxedURL = &yt.MuxedURL
-	}
-	return urls
-}
-
-func (yt YtDLPURLs) GetLen() int {
-	if yt.MuxedURL != nil {
-		return 1
-	}
-	count := 0
-	if yt.AudioURL != nil {
-		count++
-	}
-	if yt.VideoURL != nil {
-		count++
-	}
-	return count
-}
-
-func (yt YtDLPURLs) IdentifySingleURL() (string, YtDLPURLType) {
-	if yt.MuxedURL != nil {
-		return *yt.MuxedURL, YtDLPURLTypeMuxed
-	}
-	if yt.AudioURL != nil && yt.VideoURL == nil {
-		return *yt.AudioURL, YtDLPURLTypeAudio
-	}
-	if yt.VideoURL != nil && yt.AudioURL == nil {
-		return *yt.VideoURL, YtDLPURLTypeVideo
-	}
-	return "", ""
-}
-
-func (yt YtDLPURLs) GetSingleURL() string {
-	if yt.MuxedURL != nil {
-		return *yt.MuxedURL
-	}
-	if yt.AudioURL != nil && yt.VideoURL == nil {
-		return *yt.AudioURL
-	}
-	if yt.VideoURL != nil && yt.AudioURL == nil {
-		return *yt.VideoURL
-	}
-	return ""
 }

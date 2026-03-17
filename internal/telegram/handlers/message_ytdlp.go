@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	pickersession "github.com/paintingpromisesss/cobalt_bot/internal/telegram/picker_session"
 	"github.com/paintingpromisesss/cobalt_bot/internal/ytdlp"
@@ -11,11 +12,12 @@ import (
 )
 
 const (
-	YtDLPActionTab      = "select_tab"
-	YtDLPActionChoose   = "choose"
-	YtDLPActionDownload = "download"
-	YtDLPActionCancel   = "cancel"
-	YtDLPActionBack     = "back"
+	YtDLPActionTab         = "select_tab"
+	YtDLPActionChoose      = "choose"
+	YtDLPActionDownload    = "download"
+	YtDLPActionCancel      = "cancel"
+	YtDLPActionConfirmBack = "confirm_back"
+	YtDLPActionBack        = "back"
 )
 
 func (h *Handler) handleYoutubeVideoRequest(c tele.Context, statusMsg *tele.Message, userID int64, meta *ytdlp.Metadata) error {
@@ -94,7 +96,7 @@ func buildYtDLPConfirmationMessage(sessionID string, option pickersession.YtDLPP
 	rows := make([]tele.Row, 0, 2)
 
 	downloadPayload := encodeYtDLPPickerCallbackData(YtDLPActionDownload, sessionID, pickersession.YtDLPPickerTabNone, -1)
-	backPayload := encodeYtDLPPickerCallbackData(YtDLPActionBack, sessionID, pickersession.YtDLPPickerTabNone, -1)
+	backPayload := encodeYtDLPPickerCallbackData(YtDLPActionConfirmBack, sessionID, pickersession.YtDLPPickerTabNone, -1)
 
 	rows = append(rows, markup.Row(markup.Data("Скачать", YtDLPPickerButtonUnique, downloadPayload)))
 	rows = append(rows, markup.Row(markup.Data("Назад", YtDLPPickerButtonUnique, backPayload)))
@@ -106,9 +108,55 @@ func buildYtDLPConfirmationMessage(sessionID string, option pickersession.YtDLPP
 	return markup, message
 }
 
+func (h *Handler) handleYoutubeMusicRequest(c tele.Context, downloadCtx context.Context, statusMsg *tele.Message, user tele.Recipient, meta *ytdlp.Metadata) error {
+	var bestAudioFormat *ytdlp.Format
+	for _, requestedDownload := range meta.RequestedDownloads {
+		bestAudioFormat = requestedDownload.GetBestAudioFormat()
+		break
+	}
+	if bestAudioFormat == nil {
+		return fmt.Errorf("не найден подходящий аудио формат для скачивания")
+	}
+
+	option := pickersession.YtDLPPickerOption{
+		DisplayName:  bestAudioFormat.GetDisplayName(nil, nil),
+		ThumbnailURL: meta.Thumbnail,
+		ContentURL:   meta.OriginalURL,
+		FormatID:     bestAudioFormat.FormatID,
+		FileSize:     bestAudioFormat.FileSize,
+		Duration:     time.Duration(meta.Duration) * time.Second,
+		Format:       *bestAudioFormat,
+	}
+
+	return h.DownloadAndSendYtDLPOption(c, downloadCtx, statusMsg, user, option)
+}
+
 // TODO: implement this
-func (h *Handler) handleYoutubeMusicAndShortsRequest(c tele.Context, downloadCtx context.Context, statusMsg *tele.Message, user tele.Recipient, userID int64, url string, meta *ytdlp.Metadata) error {
-	return nil
+func (h *Handler) handleYoutubeShortsRequest(c tele.Context, downloadCtx context.Context, statusMsg *tele.Message, user tele.Recipient, meta *ytdlp.Metadata) error {
+	var bestVideoFormat *ytdlp.Format
+	var bestAudioFormat *ytdlp.Format
+	for _, requestedDownload := range meta.RequestedDownloads {
+		bestVideoFormat = requestedDownload.GetBestVideoFormat()
+		bestAudioFormat = requestedDownload.GetBestAudioFormat()
+		break
+	}
+	if bestVideoFormat == nil {
+		return fmt.Errorf("не найден подходящий видео формат для скачивания")
+	}
+	if bestAudioFormat == nil {
+		return fmt.Errorf("не найден подходящий аудио формат для скачивания")
+	}
+
+	option := pickersession.YtDLPPickerOption{
+		DisplayName:  bestVideoFormat.GetDisplayName(bestAudioFormat, bestVideoFormat),
+		ThumbnailURL: meta.Thumbnail,
+		ContentURL:   meta.OriginalURL,
+		FormatID:     bestVideoFormat.FormatID + "+" + bestAudioFormat.FormatID,
+		FileSize:     bestVideoFormat.FileSize + bestAudioFormat.FileSize,
+		Duration:     time.Duration(meta.Duration) * time.Second,
+		Format:       *bestVideoFormat,
+	}
+	return h.DownloadAndSendYtDLPOption(c, downloadCtx, statusMsg, user, option)
 }
 
 func encodeYtDLPPickerCallbackData(action, sessionID string, tab pickersession.YtDLPPickerTab, optionIdx int) string {

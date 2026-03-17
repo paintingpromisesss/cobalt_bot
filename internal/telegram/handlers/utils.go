@@ -11,6 +11,7 @@ import (
 	"github.com/paintingpromisesss/cobalt_bot/internal/downloader"
 	"github.com/paintingpromisesss/cobalt_bot/internal/telegram"
 	pickersession "github.com/paintingpromisesss/cobalt_bot/internal/telegram/picker_session"
+	"github.com/paintingpromisesss/cobalt_bot/internal/ytdlp"
 	"go.uber.org/zap"
 	tele "gopkg.in/telebot.v4"
 )
@@ -73,7 +74,14 @@ func formatDuration(duration int) string {
 	return fmt.Sprintf("%d:%02d", minutes, seconds)
 }
 
-func handlePickerError(c tele.Context, statusMsg *tele.Message, err error) error {
+func formatDurationLimit(seconds int) string {
+	if seconds <= 0 {
+		return formatDuration(0)
+	}
+	return formatDuration(seconds)
+}
+
+func (h *Handler) handlePickerError(c tele.Context, statusMsg *tele.Message, err error) error {
 	switch {
 	case errors.Is(err, pickersession.ErrSessionExpired):
 		_, err := c.Bot().Edit(statusMsg, "Время сессии истекло. Пожалуйста, попробуйте отправить ссылку заново.")
@@ -82,20 +90,20 @@ func handlePickerError(c tele.Context, statusMsg *tele.Message, err error) error
 		_, err := c.Bot().Edit(statusMsg, "Вы не выбрали ни одного объекта для загрузки. Пожалуйста, выберите хотя бы один и попробуйте снова.")
 		return err
 	default:
-		_, err := c.Bot().Edit(statusMsg, pickerErrorToText(err))
+		_, err := c.Bot().Edit(statusMsg, h.pickerErrorToText(err))
 		return err
 	}
 }
 
-func handlePickerCallbackError(c tele.Context, statusMsg *tele.Message, err error) error {
-	if editErr := handlePickerError(c, statusMsg, err); editErr != nil {
+func (h *Handler) handlePickerCallbackError(c tele.Context, statusMsg *tele.Message, err error) error {
+	if editErr := h.handlePickerError(c, statusMsg, err); editErr != nil {
 		return editErr
 	}
 
 	return telegram.MarkHandled(err)
 }
 
-func pickerErrorToText(err error) string {
+func (h *Handler) pickerErrorToText(err error) string {
 	errorText := "Произошла ошибка при обработке вашего запроса: " + err.Error()
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
@@ -104,6 +112,8 @@ func pickerErrorToText(err error) string {
 		errorText = "Файл слишком большой для отправки."
 	case errors.Is(err, downloader.ErrEmptyFile):
 		errorText = "Скачанный файл оказался пустым. Попробуйте повторить позже."
+	case errors.Is(err, ytdlp.ErrMediaDurationTooLong):
+		errorText = "Продолжительность медиафайла превышает допустимый лимит: " + formatDurationLimit(h.maxMediaDurationSecs) + "."
 	}
 
 	return errorText

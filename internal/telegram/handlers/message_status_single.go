@@ -14,7 +14,7 @@ func (h *Handler) handleMessageStatusSingle(c tele.Context, ctx context.Context,
 		return err
 	}
 
-	downloadResult, err := h.downloader.Download(ctx, cobaltResponse.Url, cobaltResponse.Filename)
+	downloadResult, err := h.downloader.Download(ctx, cobaltResponse.Url, cobaltResponse.Filename, nil)
 	if err != nil {
 		h.logger.Error(
 			"failed to download file",

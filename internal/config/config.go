@@ -25,10 +25,11 @@ type StorageConfig struct {
 }
 
 type TimeoutsConfig struct {
-	Request  time.Duration
-	Download time.Duration
-	FFprobe  time.Duration
-	FFmpeg   time.Duration
+	Request      time.Duration
+	Download     time.Duration
+	TelegramSend time.Duration
+	FFprobe      time.Duration
+	FFmpeg       time.Duration
 }
 
 type YTDLPConfig struct {
@@ -95,6 +96,12 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	cfg.Timeouts.Download = downloadTimeout
+
+	telegramSendTimeout, err := parsePositiveDurationEnv("TG_BOT_TELEGRAM_SEND_TIMEOUT", "10m")
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.Timeouts.TelegramSend = telegramSendTimeout
 
 	ffprobeTimeout, err := parsePositiveDurationEnv("TG_BOT_FFPROBE_TIMEOUT", "5s")
 	if err != nil {

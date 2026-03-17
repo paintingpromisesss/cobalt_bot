@@ -21,6 +21,7 @@ type Handler struct {
 	appCtx               context.Context
 	requestTimeout       time.Duration
 	downloadTimeout      time.Duration
+	maxMediaDurationSecs int
 	tb                   *telegram.Bot
 	storage              *storage.DB
 	queueManager         *queue.RequestQueue
@@ -34,11 +35,12 @@ type Handler struct {
 	pickerSessionManager *pickersession.PickerSessionManager
 }
 
-func NewHandler(appCtx context.Context, requestTimeout time.Duration, downloadTimeout time.Duration, tb *telegram.Bot, storage *storage.DB, queueManager *queue.RequestQueue, logger *zap.Logger, cobaltClient *cobalt.CobaltClient, downloader *downloader.Downloader, ytDLPClient *ytdlp.Client, urlValidator *urlvalidator.URLValidator, sender *sender.FileSender, availableServices []string, pickerSessionManager *pickersession.PickerSessionManager) *Handler {
+func NewHandler(appCtx context.Context, requestTimeout time.Duration, downloadTimeout time.Duration, maxMediaDurationSecs int, tb *telegram.Bot, storage *storage.DB, queueManager *queue.RequestQueue, logger *zap.Logger, cobaltClient *cobalt.CobaltClient, downloader *downloader.Downloader, ytDLPClient *ytdlp.Client, urlValidator *urlvalidator.URLValidator, sender *sender.FileSender, availableServices []string, pickerSessionManager *pickersession.PickerSessionManager) *Handler {
 	return &Handler{
 		appCtx:               appCtx,
 		requestTimeout:       requestTimeout,
 		downloadTimeout:      downloadTimeout,
+		maxMediaDurationSecs: maxMediaDurationSecs,
 		tb:                   tb,
 		storage:              storage,
 		queueManager:         queueManager,

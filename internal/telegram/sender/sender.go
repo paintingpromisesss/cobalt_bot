@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	probe "github.com/paintingpromisesss/cobalt_bot/internal/probe"
 	"go.uber.org/zap"
 	tele "gopkg.in/telebot.v4"
 )
@@ -45,7 +46,6 @@ func (s *FileSender) SendFile(c tele.Context, filePath, fileName, detectedMIME s
 	return nil
 }
 
-// TODO: fix this
 func (s *FileSender) buildMedia(filePath, fileName, detectedMIME string) (any, func()) {
 	file := tele.FromDisk(filePath)
 	mime := strings.TrimSpace(strings.ToLower(detectedMIME))
@@ -62,6 +62,13 @@ func (s *FileSender) buildMedia(filePath, fileName, detectedMIME string) (any, f
 			FileName:  fileName,
 			MIME:      detectedMIME,
 			Streaming: true,
+		}
+
+		mediaProbe, err := probe.ProbeMediaFile(filePath, s.ffprobeTimeout)
+		if err != nil {
+			s.log.Warn("failed to probe video metadata", zap.String("path", filePath), zap.Error(err))
+		} else if err := applyVideoMetadata(video, mediaProbe); err != nil {
+			s.log.Warn("failed to apply video metadata", zap.String("path", filePath), zap.Error(err))
 		}
 
 		return video, cleanup
