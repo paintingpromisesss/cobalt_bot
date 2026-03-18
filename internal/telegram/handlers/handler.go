@@ -21,31 +21,33 @@ type Handler struct {
 	appCtx               context.Context
 	requestTimeout       time.Duration
 	downloadTimeout      time.Duration
+	maxMediaDurationSecs int
 	tb                   *telegram.Bot
 	storage              *storage.DB
 	queueManager         *queue.RequestQueue
 	logger               *zap.Logger
 	cobaltClient         *cobalt.CobaltClient
 	downloader           *downloader.Downloader
-	ytDownloader         *ytdlp.Downloader
+	ytDLPClient          *ytdlp.Client
 	urlValidator         *urlvalidator.URLValidator
 	sender               *sender.FileSender
 	availableServices    []string
 	pickerSessionManager *pickersession.PickerSessionManager
 }
 
-func NewHandler(appCtx context.Context, requestTimeout time.Duration, downloadTimeout time.Duration, tb *telegram.Bot, storage *storage.DB, queueManager *queue.RequestQueue, logger *zap.Logger, cobaltClient *cobalt.CobaltClient, downloader *downloader.Downloader, ytDownloader *ytdlp.Downloader, urlValidator *urlvalidator.URLValidator, sender *sender.FileSender, availableServices []string, pickerSessionManager *pickersession.PickerSessionManager) *Handler {
+func NewHandler(appCtx context.Context, requestTimeout time.Duration, downloadTimeout time.Duration, maxMediaDurationSecs int, tb *telegram.Bot, storage *storage.DB, queueManager *queue.RequestQueue, logger *zap.Logger, cobaltClient *cobalt.CobaltClient, downloader *downloader.Downloader, ytDLPClient *ytdlp.Client, urlValidator *urlvalidator.URLValidator, sender *sender.FileSender, availableServices []string, pickerSessionManager *pickersession.PickerSessionManager) *Handler {
 	return &Handler{
 		appCtx:               appCtx,
 		requestTimeout:       requestTimeout,
 		downloadTimeout:      downloadTimeout,
+		maxMediaDurationSecs: maxMediaDurationSecs,
 		tb:                   tb,
 		storage:              storage,
 		queueManager:         queueManager,
 		logger:               logger,
 		cobaltClient:         cobaltClient,
 		downloader:           downloader,
-		ytDownloader:         ytDownloader,
+		ytDLPClient:          ytDLPClient,
 		urlValidator:         urlValidator,
 		sender:               sender,
 		availableServices:    availableServices,
@@ -56,6 +58,7 @@ func NewHandler(appCtx context.Context, requestTimeout time.Duration, downloadTi
 func (h *Handler) RegisterHandlers() error {
 	h.tb.Bot.Handle("/start", h.handleStart)
 	h.tb.Bot.Handle(tele.OnText, h.handleMessage)
-	h.tb.Bot.Handle(&tele.Btn{Unique: PickerButtonUnique}, h.handlePickerCallback)
+	h.tb.Bot.Handle(&tele.Btn{Unique: CobaltPickerButtonUnique}, h.handleCobaltPickerCallback)
+	h.tb.Bot.Handle(&tele.Btn{Unique: YtDLPPickerButtonUnique}, h.handleYtDLPPickerCallback)
 	return nil
 }

@@ -9,97 +9,197 @@ import (
 	"time"
 )
 
+type TelegramConfig struct {
+	BotToken  string
+	BotAPIURL string
+}
+
+type CobaltConfig struct {
+	BaseURL string
+}
+
+type StorageConfig struct {
+	DBPath       string
+	TempDir      string
+	MaxFileBytes int64
+}
+
+type TimeoutsConfig struct {
+	Request      time.Duration
+	Download     time.Duration
+	TelegramSend time.Duration
+	FFprobe      time.Duration
+	FFmpeg       time.Duration
+}
+
+type YTDLPConfig struct {
+	MaxMediaDurationSeconds int
+	CurrentlyLiveAvailable  bool
+	PlaylistAvailable       bool
+}
+
+type PickerSessionConfig struct {
+	TTL             time.Duration
+	CleanupInterval time.Duration
+}
+
+type LoggingConfig struct {
+	Level string
+}
+
 type Config struct {
-	TelegramBotToken                    string
-	TelegramBotAPIURL                   string
-	CobaltBaseURL                       string
-	MaxFileBytes                        int64
-	DBPath                              string
-	TempDir                             string
-	RequestTimeout                      time.Duration
-	DownloadTimeout                     time.Duration
-	FFprobeTimeout                      time.Duration
-	FFmpegTimeout                       time.Duration
-	PickerSessionManagerTTL             time.Duration
-	PickerSessionManagerCleanupInterval time.Duration
-	LogLevel                            string
+	Telegram      TelegramConfig
+	Cobalt        CobaltConfig
+	Storage       StorageConfig
+	Timeouts      TimeoutsConfig
+	YTDLP         YTDLPConfig
+	PickerSession PickerSessionConfig
+	Logging       LoggingConfig
 }
 
 func Load() (Config, error) {
 	cfg := Config{
-		TelegramBotToken:  strings.TrimSpace(os.Getenv("TELEGRAM_BOT_TOKEN")),
-		TelegramBotAPIURL: strings.TrimSpace(getEnvDefault("TELEGRAM_BOT_API_URL", "http://telegram-bot-api:8081")),
-		CobaltBaseURL:     getEnvDefault("COBALT_BASE_URL", "http://cobalt:9000/"),
-		DBPath:            getEnvDefault("DB_PATH", "./data/bot.db"),
-		TempDir:           getEnvDefault("TEMP_DIR", "./tmp"),
-		LogLevel:          strings.ToLower(getEnvDefault("LOG_LEVEL", "info")),
+		Telegram: TelegramConfig{
+			BotToken:  strings.TrimSpace(os.Getenv("TG_BOT_TOKEN")),
+			BotAPIURL: strings.TrimSpace(getEnvDefault("TG_BOT_API_URL", "http://telegram-bot-api:8081")),
+		},
+		Cobalt: CobaltConfig{
+			BaseURL: getEnvDefault("TG_BOT_COBALT_BASE_URL", "http://cobalt:9000/"),
+		},
+		Storage: StorageConfig{
+			DBPath:  getEnvDefault("TG_BOT_DB_PATH", "./data/bot.db"),
+			TempDir: getEnvDefault("TG_BOT_TEMP_DIR", "./tmp"),
+		},
+		Logging: LoggingConfig{
+			Level: strings.ToLower(getEnvDefault("TG_BOT_LOG_LEVEL", "info")),
+		},
 	}
 
-	if cfg.TelegramBotToken == "" {
-		return Config{}, errors.New("TELEGRAM_BOT_TOKEN is required")
+	if cfg.Telegram.BotToken == "" {
+		return Config{}, errors.New("TG_BOT_TOKEN is required")
 	}
 
-	maxBytesRaw := strings.TrimSpace(os.Getenv("MAX_FILE_BYTES"))
-	if maxBytesRaw == "" {
-		return Config{}, errors.New("MAX_FILE_BYTES is required")
-	} else {
-		maxBytes, err := strconv.ParseInt(maxBytesRaw, 10, 64)
-		if err != nil || maxBytes <= 0 {
-			return Config{}, fmt.Errorf("MAX_FILE_BYTES must be a positive integer, got %q", maxBytesRaw)
-		} else {
-			cfg.MaxFileBytes = maxBytes
-		}
+	maxFileBytes, err := parsePositiveInt64Env("TG_BOT_MAX_FILE_BYTES")
+	if err != nil {
+		return Config{}, err
 	}
+	cfg.Storage.MaxFileBytes = maxFileBytes
 
-	requestTimeoutRaw := strings.TrimSpace(getEnvDefault("REQUEST_TIMEOUT", "30s"))
-	requestTimeout, err := time.ParseDuration(requestTimeoutRaw)
-	if err != nil || requestTimeout <= 0 {
-		return Config{}, fmt.Errorf("REQUEST_TIMEOUT must be a positive duration, got %q", requestTimeoutRaw)
-	} else {
-		cfg.RequestTimeout = requestTimeout
+	requestTimeout, err := parsePositiveDurationEnv("TG_BOT_REQUEST_TIMEOUT", "30s")
+	if err != nil {
+		return Config{}, err
 	}
+	cfg.Timeouts.Request = requestTimeout
 
-	downloadTimeoutRaw := strings.TrimSpace(getEnvDefault("DOWNLOAD_TIMEOUT", "10m"))
-	downloadTimeout, err := time.ParseDuration(downloadTimeoutRaw)
-	if err != nil || downloadTimeout <= 0 {
-		return Config{}, fmt.Errorf("DOWNLOAD_TIMEOUT must be a positive duration, got %q", downloadTimeoutRaw)
-	} else {
-		cfg.DownloadTimeout = downloadTimeout
+	downloadTimeout, err := parsePositiveDurationEnv("TG_BOT_DOWNLOAD_TIMEOUT", "10m")
+	if err != nil {
+		return Config{}, err
 	}
+	cfg.Timeouts.Download = downloadTimeout
 
-	ffprobeTimeoutRaw := strings.TrimSpace(getEnvDefault("FFPROBE_TIMEOUT", "5s"))
-	ffprobeTimeout, err := time.ParseDuration(ffprobeTimeoutRaw)
-	if err != nil || ffprobeTimeout <= 0 {
-		return Config{}, fmt.Errorf("FFPROBE_TIMEOUT must be a positive duration, got %q", ffprobeTimeoutRaw)
-	} else {
-		cfg.FFprobeTimeout = ffprobeTimeout
+	telegramSendTimeout, err := parsePositiveDurationEnv("TG_BOT_TELEGRAM_SEND_TIMEOUT", "10m")
+	if err != nil {
+		return Config{}, err
 	}
+	cfg.Timeouts.TelegramSend = telegramSendTimeout
 
-	ffmpegTimeoutRaw := strings.TrimSpace(getEnvDefault("FFMPEG_TIMEOUT", "30s"))
-	ffmpegTimeout, err := time.ParseDuration(ffmpegTimeoutRaw)
-	if err != nil || ffmpegTimeout <= 0 {
-		return Config{}, fmt.Errorf("FFMPEG_TIMEOUT must be a positive duration, got %q", ffmpegTimeoutRaw)
-	} else {
-		cfg.FFmpegTimeout = ffmpegTimeout
+	ffprobeTimeout, err := parsePositiveDurationEnv("TG_BOT_FFPROBE_TIMEOUT", "5s")
+	if err != nil {
+		return Config{}, err
 	}
+	cfg.Timeouts.FFprobe = ffprobeTimeout
 
-	pickerSessionManangerTTLRaw := strings.TrimSpace(getEnvDefault("PICKER_SESSION_MANAGER_TTL", "10m"))
-	pickerSessionManagerTTL, err := time.ParseDuration(pickerSessionManangerTTLRaw)
-	if err != nil || pickerSessionManagerTTL <= 0 {
-		return Config{}, fmt.Errorf("PICKER_SESSION_MANAGER_TTL must be a positive duration, got %q", pickerSessionManangerTTLRaw)
-	} else {
-		cfg.PickerSessionManagerTTL = pickerSessionManagerTTL
+	ffmpegTimeout, err := parsePositiveDurationEnv("TG_BOT_FFMPEG_TIMEOUT", "30s")
+	if err != nil {
+		return Config{}, err
 	}
+	cfg.Timeouts.FFmpeg = ffmpegTimeout
 
-	pickerSessionManangerCleanupIntervalRaw := strings.TrimSpace(getEnvDefault("PICKER_SESSION_MANAGER_CLEANUP_INTERVAL", "3m"))
-	pickerSessionManagerCleanupInterval, err := time.ParseDuration(pickerSessionManangerCleanupIntervalRaw)
-	if err != nil || pickerSessionManagerCleanupInterval <= 0 {
-		return Config{}, fmt.Errorf("PICKER_SESSION_MANAGER_CLEANUP_INTERVAL must be a positive duration, got %q", pickerSessionManangerCleanupIntervalRaw)
-	} else {
-		cfg.PickerSessionManagerCleanupInterval = pickerSessionManagerCleanupInterval
+	maxMediaDurationSeconds, err := parsePositiveIntEnv("TG_BOT_YTDLP_MAX_MEDIA_DURATION_SECS", "7200")
+	if err != nil {
+		return Config{}, err
 	}
+	cfg.YTDLP.MaxMediaDurationSeconds = maxMediaDurationSeconds
+
+	currentlyLiveAvailable, err := parseBoolEnv("TG_BOT_YTDLP_CURRENTLY_LIVE_AVAILABLE", "0")
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.YTDLP.CurrentlyLiveAvailable = currentlyLiveAvailable
+
+	playlistAvailable, err := parseBoolEnv("TG_BOT_YTDLP_PLAYLIST_AVAILABLE", "0")
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.YTDLP.PlaylistAvailable = playlistAvailable
+
+	pickerSessionTTL, err := parsePositiveDurationEnv("TG_BOT_PICKER_SESSION_MANAGER_TTL", "10m")
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.PickerSession.TTL = pickerSessionTTL
+
+	pickerSessionCleanupInterval, err := parsePositiveDurationEnv("TG_BOT_PICKER_SESSION_MANAGER_CLEANUP_INTERVAL", "3m")
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.PickerSession.CleanupInterval = pickerSessionCleanupInterval
 
 	return cfg, nil
+}
+
+func parsePositiveInt64Env(key string) (int64, error) {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return 0, fmt.Errorf("%s is required", key)
+	}
+
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || value <= 0 {
+		return 0, fmt.Errorf("%s must be a positive integer, got %q", key, raw)
+	}
+
+	return value, nil
+}
+
+func parsePositiveIntEnv(key, fallback string) (int, error) {
+	raw := strings.TrimSpace(getEnvDefault(key, fallback))
+
+	value, err := strconv.Atoi(raw)
+	if err != nil || value <= 0 {
+		return 0, fmt.Errorf("%s must be a positive integer, got %q", key, raw)
+	}
+
+	return value, nil
+}
+
+func parsePositiveDurationEnv(key, fallback string) (time.Duration, error) {
+	raw := strings.TrimSpace(getEnvDefault(key, fallback))
+
+	value, err := time.ParseDuration(raw)
+	if err != nil || value <= 0 {
+		return 0, fmt.Errorf("%s must be a positive duration, got %q", key, raw)
+	}
+
+	return value, nil
+}
+
+func parseBoolEnv(key, fallback string) (bool, error) {
+	raw := strings.TrimSpace(getEnvDefault(key, fallback))
+
+	value, err := strconv.ParseBool(raw)
+	if err == nil {
+		return value, nil
+	}
+
+	switch raw {
+	case "0":
+		return false, nil
+	case "1":
+		return true, nil
+	default:
+		return false, fmt.Errorf("%s must be a boolean, got %q", key, raw)
+	}
 }
 
 func getEnvDefault(key, fallback string) string {

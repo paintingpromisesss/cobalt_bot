@@ -24,7 +24,7 @@ func TestDownloadSuccess(t *testing.T) {
 	tempDir := t.TempDir()
 	d := NewDownloader(time.Second, tempDir, 1024)
 
-	got, err := d.Download(context.Background(), server.URL+"/file", "video.mp4")
+	got, err := d.Download(context.Background(), server.URL+"/file", "video.mp4", nil)
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -67,7 +67,7 @@ func TestDownloadDetectMIMEFromContentWhenHeaderGeneric(t *testing.T) {
 	tempDir := t.TempDir()
 	d := NewDownloader(time.Second, tempDir, 1024)
 
-	got, err := d.Download(context.Background(), server.URL+"/img", "image.jpg")
+	got, err := d.Download(context.Background(), server.URL+"/img", "image.jpg", nil)
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -90,7 +90,7 @@ func TestDownloadFileTooLarge(t *testing.T) {
 	tempDir := t.TempDir()
 	d := NewDownloader(time.Second, tempDir, 3)
 
-	_, err := d.Download(context.Background(), server.URL, "file")
+	_, err := d.Download(context.Background(), server.URL, "file", nil)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}

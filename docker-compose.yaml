@@ -7,12 +7,13 @@ services:
       - NET_ADMIN
     devices:
       - /dev/net/tun:/dev/net/tun
-    expose:
-      - "2080"
-      - "8081"
+    ports:
+      - "2080:2080"
+      - "2081:2081"
+      - "8081:8081"
+      - "9090:9090"
     volumes:
       - ./mihomo/config.yaml:/root/.config/mihomo/config.yaml:ro
-      - ./mihomo/providers:/root/.config/mihomo/providers
     environment:
       TZ: ${MIHOMO_TZ}
     healthcheck:
@@ -21,76 +22,32 @@ services:
       timeout: 5s
       retries: 6
       start_period: 10s
+
   cobalt:
     image: ghcr.io/imputnet/cobalt:11.5
     container_name: cobalt
     restart: unless-stopped
     init: true
-    ports:
-      - "9000:9000"
+    network_mode: "service:mihomo"
     environment:
       API_URL: ${COBALT_API_URL}
       API_PORT: ${COBALT_API_PORT}
-
-      HTTP_PROXY: ${COBALT_HTTP_PROXY}
-      HTTPS_PROXY: ${COBALT_HTTPS_PROXY}
-      NO_PROXY: ${COBALT_NO_PROXY}
-
       CORS_WILDCARD: ${COBALT_CORS_WILDCARD}
       API_AUTH_REQUIRED: ${COBALT_API_AUTH_REQUIRED}
-
       FORCE_LOCAL_PROCESSING: ${COBALT_FORCE_LOCAL_PROCESSING}
       DISABLED_SERVICES: ${COBALT_DISABLED_SERVICES}
-
       DURATION_LIMIT: ${COBALT_DURATION_LIMIT}
       TUNNEL_LIFESPAN: ${COBALT_TUNNEL_LIFESPAN}
       RATELIMIT_WINDOW: ${COBALT_RATELIMIT_WINDOW}
       RATELIMIT_MAX: ${COBALT_RATELIMIT_MAX}
       TUNNEL_RATELIMIT_WINDOW: ${COBALT_TUNNEL_RATELIMIT_WINDOW}
       TUNNEL_RATELIMIT_MAX: ${COBALT_TUNNEL_RATELIMIT_MAX}
-
       ENABLE_DEPRECATED_YOUTUBE_HLS: ${COBALT_ENABLE_DEPRECATED_YOUTUBE_HLS}
       YOUTUBE_ALLOW_BETTER_AUDIO: ${COBALT_YOUTUBE_ALLOW_BETTER_AUDIO}
-      
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:9000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 10s
-      timeout: 5s
-      retries: 6
-      start_period: 10s
     depends_on:
       mihomo:
         condition: service_healthy
-  tg_bot:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: tg_bot
-    restart: unless-stopped
-    init: true
-    environment:
-      TELEGRAM_BOT_TOKEN: ${TG_BOT_TOKEN}
-      TELEGRAM_BOT_API_URL: http://mihomo:8081
-      COBALT_BASE_URL: ${TG_BOT_COBALT_BASE_URL}
-      MAX_FILE_BYTES: ${TG_BOT_MAX_FILE_BYTES}
-      DB_PATH: ${TG_BOT_DB_PATH}
-      TEMP_DIR: ${TG_BOT_TEMP_DIR}
-      REQUEST_TIMEOUT: ${TG_BOT_REQUEST_TIMEOUT}
-      DOWNLOAD_TIMEOUT: ${TG_BOT_DOWNLOAD_TIMEOUT}
-      FFPROBE_TIMEOUT: ${TG_BOT_FFPROBE_TIMEOUT}
-      FFMPEG_TIMEOUT: ${TG_BOT_FFMPEG_TIMEOUT}
-      PICKER_SESSION_MANAGER_TTL: ${TG_BOT_PICKER_SESSION_MANAGER_TTL}
-      PICKER_SESSION_MANAGER_CLEANUP_INTERVAL: ${TG_BOT_PICKER_SESSION_MANAGER_CLEANUP_INTERVAL}
-      LOG_LEVEL: ${TG_BOT_LOG_LEVEL}
-    volumes:
-      - ./data:/app/data
-      - ./tmp:/app/tmp
-    depends_on:
-      cobalt:
-        condition: service_healthy
-      telegram-bot-api:
-        condition: service_started
-  
+
   telegram-bot-api:
     image: aiogram/telegram-bot-api:latest
     container_name: telegram-bot-api
@@ -106,7 +63,28 @@ services:
       TELEGRAM_VERBOSITY: "1"
     volumes:
       - telegram-bot-api-data:/var/lib/telegram-bot-api
+    depends_on:
+      mihomo:
+        condition: service_healthy
+
+  tg_bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tg_bot
+    restart: unless-stopped
+    network_mode: "service:mihomo"
+    init: true
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./tmp:/app/tmp
+    depends_on:
+      cobalt:
+        condition: service_started
+      telegram-bot-api:
+        condition: service_started
 
 volumes:
   telegram-bot-api-data:
-      
