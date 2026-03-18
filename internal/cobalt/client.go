@@ -23,23 +23,6 @@ func NewCobaltClient(baseURL string, timeout time.Duration) *CobaltClient {
 	}
 }
 
-func (c *CobaltClient) GetInstanceInfo(ctx context.Context) (InstanceResponse, error) {
-	var instanceInfo InstanceResponse
-	headers := http.Header{}
-	headers.Set("Accept", "application/json")
-
-	err := c.httpClient.DoRequest(ctx, httpclient.Options{
-		Method:         http.MethodGet,
-		URL:            c.baseURL,
-		RequestHeaders: &headers,
-		Output:         &instanceInfo,
-	})
-	if err != nil {
-		return InstanceResponse{}, fmt.Errorf("cobalt request failed: %w", err)
-	}
-	return instanceInfo, err
-}
-
 func (c *CobaltClient) GetContentURL(ctx context.Context, request MainRequest) (MainResponse, error) {
 	var output json.RawMessage
 	requestHeaders := http.Header{}

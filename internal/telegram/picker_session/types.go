@@ -3,6 +3,8 @@ package pickersession
 import (
 	"errors"
 	"time"
+
+	"github.com/paintingpromisesss/cobalt_bot/internal/domain/picker"
 )
 
 var (
@@ -26,7 +28,7 @@ const (
 type pickerSession struct {
 	sessionType PickerSessionType
 	userID      int64
-	cobalt      *CobaltPickerState
-	ytdlp       *YtDLPPickerState
+	cobalt      *picker.CobaltState
+	ytdlp       *picker.YtDLPState
 	expiresAt   time.Time
 }

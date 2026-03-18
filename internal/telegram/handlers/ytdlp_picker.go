@@ -6,9 +6,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/paintingpromisesss/cobalt_bot/internal/domain/media"
+	"github.com/paintingpromisesss/cobalt_bot/internal/domain/picker"
 	"github.com/paintingpromisesss/cobalt_bot/internal/telegram"
 	pickersession "github.com/paintingpromisesss/cobalt_bot/internal/telegram/picker_session"
-	"github.com/paintingpromisesss/cobalt_bot/internal/ytdlp"
 	"go.uber.org/zap"
 	tele "gopkg.in/telebot.v4"
 )
@@ -86,13 +87,13 @@ func (h *Handler) handleYtDLPPickerCallback(c tele.Context) error {
 	}
 }
 
-func (h *Handler) DownloadAndSendYtDLPOption(c tele.Context, downloadCtx context.Context, statusMsg *tele.Message, user tele.Recipient, option pickersession.YtDLPPickerOption) error {
+func (h *Handler) DownloadAndSendYtDLPOption(c tele.Context, downloadCtx context.Context, statusMsg *tele.Message, user tele.Recipient, option picker.YtDLPOption) error {
 	if _, err := c.Bot().Edit(statusMsg, fmt.Sprintf("Начинаю загрузку формата: %s...", option.DisplayName)); err != nil {
 		return err
 	}
 
-	var selectedFormat *ytdlp.Format
-	if option.Format.FormatID != "" {
+	var selectedFormat *media.DownloadFormat
+	if option.Format.IsAudio() || option.Format.IsVideo() {
 		selectedFormat = &option.Format
 	}
 
@@ -118,20 +119,20 @@ func (h *Handler) DownloadAndSendYtDLPOption(c tele.Context, downloadCtx context
 	return nil
 }
 
-func parseYtDLPPickerCallbackData(data string) (action, sessionID string, tab pickersession.YtDLPPickerTab, optionIdx int, err error) {
+func parseYtDLPPickerCallbackData(data string) (action, sessionID string, tab picker.YtDLPTab, optionIdx int, err error) {
 	parts := strings.Split(strings.TrimSpace(data), ":")
 	if len(parts) < 2 || len(parts) > 4 {
-		return "", "", pickersession.YtDLPPickerTabNone, -1, fmt.Errorf("invalid callback data format")
+		return "", "", picker.YtDLPTabNone, -1, fmt.Errorf("invalid callback data format")
 	}
 
-	action, sessionID, tab, optionIdx = parts[0], parts[1], pickersession.YtDLPPickerTabNone, -1
+	action, sessionID, tab, optionIdx = parts[0], parts[1], picker.YtDLPTabNone, -1
 	if len(parts) >= 3 {
-		tab = pickersession.YtDLPPickerTab(parts[2])
+		tab = picker.YtDLPTab(parts[2])
 	}
 	if len(parts) == 4 {
 		idx, convErr := strconv.Atoi(parts[3])
 		if convErr != nil {
-			return "", "", pickersession.YtDLPPickerTabNone, -1, fmt.Errorf("invalid option index: %v", convErr)
+			return "", "", picker.YtDLPTabNone, -1, fmt.Errorf("invalid option index: %v", convErr)
 		}
 		optionIdx = idx
 	}

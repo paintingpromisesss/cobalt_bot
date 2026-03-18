@@ -7,9 +7,10 @@ import (
 	"time"
 
 	"github.com/paintingpromisesss/cobalt_bot/internal/cobalt"
+	"github.com/paintingpromisesss/cobalt_bot/internal/domain/media"
+	domainUser "github.com/paintingpromisesss/cobalt_bot/internal/domain/user"
 	"github.com/paintingpromisesss/cobalt_bot/internal/storage"
 	"github.com/paintingpromisesss/cobalt_bot/internal/telegram"
-	"github.com/paintingpromisesss/cobalt_bot/internal/ytdlp"
 	"go.uber.org/zap"
 	tele "gopkg.in/telebot.v4"
 )
@@ -59,7 +60,7 @@ func (h *Handler) handleMessage(c tele.Context) error {
 			if err := h.storage.EnsureUserSettings(metaCtx, userID); err != nil {
 				return err
 			}
-			settings = storage.GetDefaultUserSettings()
+			settings = domainUser.DefaultSettings()
 			settings.UserID = userID
 		} else {
 			return err
@@ -114,7 +115,7 @@ func (h *Handler) handleMessage(c tele.Context) error {
 	return nil
 }
 
-func (h *Handler) processCobaltRequest(c tele.Context, downloadCtx, metaCtx context.Context, statusMsg *tele.Message, user tele.Recipient, userID int64, url, username string, userSettings storage.UserSettings) (sessionResult, error) {
+func (h *Handler) processCobaltRequest(c tele.Context, downloadCtx, metaCtx context.Context, statusMsg *tele.Message, user tele.Recipient, userID int64, url, username string, userSettings domainUser.Settings) (sessionResult, error) {
 	cobaltRequest := cobalt.GetCobaltRequest(url, userSettings)
 	resp, err := h.cobaltClient.GetContentURL(metaCtx, cobaltRequest)
 	if err != nil {
@@ -148,7 +149,7 @@ func (h *Handler) processCobaltRequest(c tele.Context, downloadCtx, metaCtx cont
 	}
 }
 
-func (h *Handler) processYoutubeRequest(c tele.Context, downloadCtx, metaCtx context.Context, statusMsg *tele.Message, user tele.Recipient, userID int64, url, username string, userSettings storage.UserSettings, contentType ytdlp.YoutubeURLType) (sessionResult, error) {
+func (h *Handler) processYoutubeRequest(c tele.Context, downloadCtx, metaCtx context.Context, statusMsg *tele.Message, user tele.Recipient, userID int64, url, username string, userSettings domainUser.Settings, contentType media.YouTubeContentKind) (sessionResult, error) {
 	meta, err := h.ytDLPClient.GetMetadata(metaCtx, url)
 	if err != nil {
 		return "", err
@@ -161,21 +162,21 @@ func (h *Handler) processYoutubeRequest(c tele.Context, downloadCtx, metaCtx con
 		zap.String("url", url),
 		zap.String("title", meta.Title),
 		zap.Bool("is_live", meta.IsLive),
-		zap.String("media_type", string(meta.MediaType)),
+		zap.String("media_type", meta.MediaType),
 	)
 
 	switch contentType {
-	case ytdlp.YoutubeVideo:
+	case media.YouTubeVideo:
 		if err := h.handleYoutubeVideoRequest(c, statusMsg, userID, meta); err != nil {
 			return "", err
 		}
 		return sessionResultAwaitingSelection, nil
-	case ytdlp.YoutubeMusic:
+	case media.YouTubeMusic:
 		if err := h.handleYoutubeMusicRequest(c, downloadCtx, statusMsg, user, meta); err != nil {
 			return "", err
 		}
 		return sessionResultCompleted, nil
-	case ytdlp.YoutubeShorts:
+	case media.YouTubeShorts:
 		if err := h.handleYoutubeShortsRequest(c, downloadCtx, statusMsg, user, meta); err != nil {
 			return "", err
 		}

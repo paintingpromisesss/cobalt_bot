@@ -6,7 +6,8 @@ import (
 	"strconv"
 	"time"
 
-	pickersession "github.com/paintingpromisesss/cobalt_bot/internal/telegram/picker_session"
+	"github.com/paintingpromisesss/cobalt_bot/internal/domain/media"
+	"github.com/paintingpromisesss/cobalt_bot/internal/domain/picker"
 	"github.com/paintingpromisesss/cobalt_bot/internal/ytdlp"
 	tele "gopkg.in/telebot.v4"
 )
@@ -34,10 +35,10 @@ func (h *Handler) handleYoutubeVideoRequest(c tele.Context, statusMsg *tele.Mess
 	return h.renderYtDLPPickerKeyboard(c, statusMsg, pickerSessionID, &pickerView)
 }
 
-func (h *Handler) renderYtDLPPickerKeyboard(c tele.Context, statusMsg *tele.Message, sessionID string, pickerView *pickersession.YtDLPPickerView) error {
+func (h *Handler) renderYtDLPPickerKeyboard(c tele.Context, statusMsg *tele.Message, sessionID string, pickerView *picker.YtDLPView) error {
 	var markup *tele.ReplyMarkup
 	var message string
-	if pickerView.ActiveTab == pickersession.YtDLPPickerTabNone {
+	if pickerView.ActiveTab == picker.YtDLPTabNone {
 		markup, message = buildYtDLPTabsMessage(sessionID, pickerView)
 	} else {
 		markup, message = buildYtDLPOptionsMessage(sessionID, pickerView)
@@ -47,7 +48,7 @@ func (h *Handler) renderYtDLPPickerKeyboard(c tele.Context, statusMsg *tele.Mess
 	return err
 }
 
-func buildYtDLPTabsMessage(sessionID string, pickerView *pickersession.YtDLPPickerView) (*tele.ReplyMarkup, string) {
+func buildYtDLPTabsMessage(sessionID string, pickerView *picker.YtDLPView) (*tele.ReplyMarkup, string) {
 	markup := &tele.ReplyMarkup{}
 	total := len(pickerView.Tabs)
 	rows := make([]tele.Row, 0, total+1)
@@ -58,7 +59,7 @@ func buildYtDLPTabsMessage(sessionID string, pickerView *pickersession.YtDLPPick
 		rows = append(rows, markup.Row(markup.Data(text, YtDLPPickerButtonUnique, payload)))
 	}
 
-	payload := encodeYtDLPPickerCallbackData(YtDLPActionCancel, sessionID, pickersession.YtDLPPickerTabNone, -1)
+	payload := encodeYtDLPPickerCallbackData(YtDLPActionCancel, sessionID, picker.YtDLPTabNone, -1)
 	rows = append(rows, markup.Row(markup.Data("Отменить", YtDLPPickerButtonUnique, payload)))
 
 	markup.Inline(rows...)
@@ -68,7 +69,7 @@ func buildYtDLPTabsMessage(sessionID string, pickerView *pickersession.YtDLPPick
 	return markup, message
 }
 
-func buildYtDLPOptionsMessage(sessionID string, pickerView *pickersession.YtDLPPickerView) (*tele.ReplyMarkup, string) {
+func buildYtDLPOptionsMessage(sessionID string, pickerView *picker.YtDLPView) (*tele.ReplyMarkup, string) {
 	markup := &tele.ReplyMarkup{}
 	rows := make([]tele.Row, 0, len(pickerView.Options)+1)
 
@@ -76,7 +77,7 @@ func buildYtDLPOptionsMessage(sessionID string, pickerView *pickersession.YtDLPP
 		rows = append(rows, markup.Row(markup.Data(option.DisplayName, YtDLPPickerButtonUnique, encodeYtDLPPickerCallbackData(YtDLPActionChoose, sessionID, pickerView.ActiveTab, i))))
 	}
 
-	rows = append(rows, markup.Row(markup.Data("Назад", YtDLPPickerButtonUnique, encodeYtDLPPickerCallbackData(YtDLPActionBack, sessionID, pickersession.YtDLPPickerTabNone, -1))))
+	rows = append(rows, markup.Row(markup.Data("Назад", YtDLPPickerButtonUnique, encodeYtDLPPickerCallbackData(YtDLPActionBack, sessionID, picker.YtDLPTabNone, -1))))
 
 	markup.Inline(rows...)
 
@@ -85,18 +86,18 @@ func buildYtDLPOptionsMessage(sessionID string, pickerView *pickersession.YtDLPP
 	return markup, message
 }
 
-func (h *Handler) renderYtDLPConfirmationKeyboard(c tele.Context, statusMsg *tele.Message, sessionID string, option pickersession.YtDLPPickerOption) error {
+func (h *Handler) renderYtDLPConfirmationKeyboard(c tele.Context, statusMsg *tele.Message, sessionID string, option picker.YtDLPOption) error {
 	markup, message := buildYtDLPConfirmationMessage(sessionID, option)
 	_, err := c.Bot().Edit(statusMsg, message, &tele.SendOptions{ReplyMarkup: markup})
 	return err
 }
 
-func buildYtDLPConfirmationMessage(sessionID string, option pickersession.YtDLPPickerOption) (*tele.ReplyMarkup, string) {
+func buildYtDLPConfirmationMessage(sessionID string, option picker.YtDLPOption) (*tele.ReplyMarkup, string) {
 	markup := &tele.ReplyMarkup{}
 	rows := make([]tele.Row, 0, 2)
 
-	downloadPayload := encodeYtDLPPickerCallbackData(YtDLPActionDownload, sessionID, pickersession.YtDLPPickerTabNone, -1)
-	backPayload := encodeYtDLPPickerCallbackData(YtDLPActionConfirmBack, sessionID, pickersession.YtDLPPickerTabNone, -1)
+	downloadPayload := encodeYtDLPPickerCallbackData(YtDLPActionDownload, sessionID, picker.YtDLPTabNone, -1)
+	backPayload := encodeYtDLPPickerCallbackData(YtDLPActionConfirmBack, sessionID, picker.YtDLPTabNone, -1)
 
 	rows = append(rows, markup.Row(markup.Data("Скачать", YtDLPPickerButtonUnique, downloadPayload)))
 	rows = append(rows, markup.Row(markup.Data("Назад", YtDLPPickerButtonUnique, backPayload)))
@@ -118,14 +119,14 @@ func (h *Handler) handleYoutubeMusicRequest(c tele.Context, downloadCtx context.
 		return fmt.Errorf("не найден подходящий аудио формат для скачивания")
 	}
 
-	option := pickersession.YtDLPPickerOption{
+	option := picker.YtDLPOption{
 		DisplayName:  bestAudioFormat.GetDisplayName(nil, nil),
 		ThumbnailURL: meta.Thumbnail,
 		ContentURL:   meta.OriginalURL,
 		FormatID:     bestAudioFormat.FormatID,
 		FileSize:     bestAudioFormat.FileSize,
 		Duration:     time.Duration(meta.Duration) * time.Second,
-		Format:       *bestAudioFormat,
+		Format:       media.DownloadFormat{HasAudio: true},
 	}
 
 	return h.DownloadAndSendYtDLPOption(c, downloadCtx, statusMsg, user, option)
@@ -147,35 +148,35 @@ func (h *Handler) handleYoutubeShortsRequest(c tele.Context, downloadCtx context
 		return fmt.Errorf("не найден подходящий аудио формат для скачивания")
 	}
 
-	option := pickersession.YtDLPPickerOption{
+	option := picker.YtDLPOption{
 		DisplayName:  bestVideoFormat.GetDisplayName(bestAudioFormat, bestVideoFormat),
 		ThumbnailURL: meta.Thumbnail,
 		ContentURL:   meta.OriginalURL,
 		FormatID:     bestVideoFormat.FormatID + "+" + bestAudioFormat.FormatID,
 		FileSize:     bestVideoFormat.FileSize + bestAudioFormat.FileSize,
 		Duration:     time.Duration(meta.Duration) * time.Second,
-		Format:       *bestVideoFormat,
+		Format:       media.DownloadFormat{HasAudio: true, HasVideo: true},
 	}
 	return h.DownloadAndSendYtDLPOption(c, downloadCtx, statusMsg, user, option)
 }
 
-func encodeYtDLPPickerCallbackData(action, sessionID string, tab pickersession.YtDLPPickerTab, optionIdx int) string {
+func encodeYtDLPPickerCallbackData(action, sessionID string, tab picker.YtDLPTab, optionIdx int) string {
 	if optionIdx >= 0 {
 		return action + ":" + sessionID + ":" + string(tab) + ":" + strconv.Itoa(optionIdx)
 	}
-	if tab != pickersession.YtDLPPickerTabNone && tab != "" {
+	if tab != picker.YtDLPTabNone && tab != "" {
 		return action + ":" + sessionID + ":" + string(tab)
 	}
 	return action + ":" + sessionID
 }
 
-func getYtDLPTabLabel(tab pickersession.YtDLPPickerTab) string {
+func getYtDLPTabLabel(tab picker.YtDLPTab) string {
 	switch tab {
-	case pickersession.YtDLPPickerTabAudioOnly:
+	case picker.YtDLPTabAudioOnly:
 		return "Аудио (только звук)"
-	case pickersession.YtDLPPickerTabVideoOnly:
+	case picker.YtDLPTabVideoOnly:
 		return "Видео (только картинка)"
-	case pickersession.YtDLPPickerTabAudioVideo:
+	case picker.YtDLPTabAudioVideo:
 		return "Аудио + Видео (звук и картинка в одном файле)"
 	default:
 		return "Неизвестно"

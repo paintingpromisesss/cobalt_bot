@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/paintingpromisesss/cobalt_bot/internal/cobalt"
+	"github.com/paintingpromisesss/cobalt_bot/internal/domain/picker"
 	"github.com/paintingpromisesss/cobalt_bot/internal/downloader"
 	pickersession "github.com/paintingpromisesss/cobalt_bot/internal/telegram/picker_session"
 	"go.uber.org/zap"
@@ -38,13 +39,13 @@ func (h *Handler) handleMessageStatusPicker(c tele.Context, statusMsg *tele.Mess
 
 }
 
-func (h *Handler) renderPickerKeyboard(c tele.Context, statusMsg *tele.Message, sessionID string, pickerView *pickersession.CobaltPickerView) error {
+func (h *Handler) renderPickerKeyboard(c tele.Context, statusMsg *tele.Message, sessionID string, pickerView *picker.CobaltView) error {
 	markup, message := buildPickerMessage(sessionID, pickerView)
 	_, err := c.Bot().Edit(statusMsg, message, &tele.SendOptions{ReplyMarkup: markup})
 	return err
 }
 
-func (h *Handler) DownloadAndSendSelectedOptions(c tele.Context, statusMsg *tele.Message, downloadCtx context.Context, userID int64, user tele.Recipient, options []pickersession.CobaltPickerOption) error {
+func (h *Handler) DownloadAndSendSelectedOptions(c tele.Context, statusMsg *tele.Message, downloadCtx context.Context, userID int64, user tele.Recipient, options []picker.CobaltOption) error {
 	if len(options) == 0 {
 		return pickersession.ErrNoOptionsSelected
 	}
@@ -125,7 +126,7 @@ func (h *Handler) DownloadAndSendSelectedOptions(c tele.Context, statusMsg *tele
 	return nil
 }
 
-func buildPickerMessage(sessionID string, pickerView *pickersession.CobaltPickerView) (*tele.ReplyMarkup, string) {
+func buildPickerMessage(sessionID string, pickerView *picker.CobaltView) (*tele.ReplyMarkup, string) {
 	markup := &tele.ReplyMarkup{}
 	total := len(pickerView.Options)
 	rows := make([]tele.Row, 0, total+3)

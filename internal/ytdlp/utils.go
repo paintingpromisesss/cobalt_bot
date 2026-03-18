@@ -5,14 +5,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-)
 
-type YoutubeURLType string
-
-const (
-	YoutubeVideo  YoutubeURLType = "video"
-	YoutubeMusic  YoutubeURLType = "music"
-	YoutubeShorts YoutubeURLType = "shorts"
+	"github.com/paintingpromisesss/cobalt_bot/internal/domain/media"
 )
 
 func (c *Client) buildGetMetadataArgs(url string, ClientType *YtDLPClient) []string {
@@ -43,21 +37,21 @@ func (c *Client) buildGetMetadataArgs(url string, ClientType *YtDLPClient) []str
 	return args
 }
 
-func (c *Client) IdentifyYoutubeURL(url string) (bool, YoutubeURLType) {
+func (c *Client) IdentifyYoutubeURL(url string) (bool, media.YouTubeContentKind) {
 	lowerURL := strings.ToLower(strings.TrimSpace(url))
 	if strings.Contains(lowerURL, "youtube.com/") || strings.Contains(lowerURL, "youtu.be/") {
 		if strings.Contains(lowerURL, "music") {
-			return true, YoutubeMusic
+			return true, media.YouTubeMusic
 		}
 		if strings.Contains(lowerURL, "shorts") {
-			return true, YoutubeShorts
+			return true, media.YouTubeShorts
 		}
-		return true, YoutubeVideo
+		return true, media.YouTubeVideo
 	}
-	return false, "other"
+	return false, media.YouTubeOther
 }
 
-func (c *Client) buildDownloadArgs(url string, formatID string, selectedFormat *Format) []string {
+func (c *Client) buildDownloadArgs(url string, formatID string, selectedFormat *media.DownloadFormat) []string {
 	args := []string{
 		"-f", formatID,
 		"-P", "home:" + c.tempDir,
@@ -94,7 +88,7 @@ func (c *Client) buildDownloadArgs(url string, formatID string, selectedFormat *
 	return args
 }
 
-func buildDownloadPostProcessArgs(formatID string, selectedFormat *Format) []string {
+func buildDownloadPostProcessArgs(formatID string, selectedFormat *media.DownloadFormat) []string {
 	switch {
 	case strings.Contains(formatID, "+"):
 		return []string{"--merge-output-format", "mp4"}
@@ -117,4 +111,53 @@ func parseDownloadedFilePath(output []byte) (string, error) {
 		return filepath.Clean(line), nil
 	}
 	return "", errors.New("yt-dlp did not return downloaded filepath")
+}
+
+func (f Format) GetDisplayName(audioFormat, videoFormat *Format) string {
+	if audioFormat != nil && videoFormat != nil {
+		return fmt.Sprintf(
+			"%dx%d [%s] [%s] + %dkbps [%s] [%s] (merged)",
+			videoFormat.Width,
+			videoFormat.Height,
+			formatCodecLabel(videoFormat.VCodec),
+			videoFormat.FormatID,
+			audioFormat.GetRoundedABR(),
+			formatCodecLabel(audioFormat.ACodec),
+			audioFormat.FormatID,
+		)
+	}
+
+	if f.IsAudio() && !f.IsVideo() {
+		return fmt.Sprintf("%dkbps [%s] [%s]", f.GetRoundedABR(), formatCodecLabel(f.ACodec), f.FormatID)
+	}
+	if f.IsVideo() && !f.IsAudio() {
+		return fmt.Sprintf("%dx%d [%s] [%s]", f.Width, f.Height, formatCodecLabel(f.VCodec), f.FormatID)
+	}
+
+	if f.IsAudio() && f.IsVideo() {
+		return fmt.Sprintf(
+			"%dx%d [%s] + %dkbps [%s] (muxed) [%s]",
+			f.Width,
+			f.Height,
+			formatCodecLabel(f.VCodec),
+			f.GetRoundedABR(),
+			formatCodecLabel(f.ACodec),
+			f.FormatID,
+		)
+	}
+
+	return f.FormatID
+}
+
+func formatCodecLabel(codec string) string {
+	value := strings.TrimSpace(codec)
+	if value == "" || value == "none" {
+		return "unknown"
+	}
+
+	if idx := strings.Index(value, "."); idx > 0 {
+		return value[:idx]
+	}
+
+	return value
 }

@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/paintingpromisesss/cobalt_bot/internal/domain/media"
 	"github.com/paintingpromisesss/cobalt_bot/internal/downloader"
 	"github.com/paintingpromisesss/cobalt_bot/internal/probe"
 )
@@ -66,7 +67,7 @@ func (c *Client) GetMetadata(ctx context.Context, url string) (*Metadata, error)
 	return &metadata, nil
 }
 
-func (c *Client) Download(ctx context.Context, url, formatID string, selectedFormat *Format) (*downloader.DownloadResult, error) {
+func (c *Client) Download(ctx context.Context, url, formatID string, selectedFormat *media.DownloadFormat) (*downloader.DownloadResult, error) {
 	args := c.buildDownloadArgs(url, formatID, selectedFormat)
 	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
 

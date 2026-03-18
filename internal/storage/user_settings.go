@@ -5,18 +5,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+
+	"github.com/paintingpromisesss/cobalt_bot/internal/domain/user"
 )
 
 var ErrUserSettingsNotFound = errors.New("user settings not found")
-
-type UserSettings struct {
-	UserID         int64   `db:"user_id"`
-	AudioBitrate   string  `db:"audio_bitrate"`
-	AudioFormat    string  `db:"audio_format"`
-	VideoQuality   string  `db:"video_quality"`
-	SubtitleLang   *string `db:"subtitle_lang"`
-	YoutubeDubLang *string `db:"youtube_dub_lang"`
-}
 
 type userSettingsRow struct {
 	UserID         int64          `db:"user_id"`
@@ -27,7 +20,7 @@ type userSettingsRow struct {
 	YoutubeDubLang sql.NullString `db:"youtube_dub_lang"`
 }
 
-func (d *DB) GetUserSettings(ctx context.Context, userID int64) (UserSettings, error) {
+func (d *DB) GetUserSettings(ctx context.Context, userID int64) (user.Settings, error) {
 	const query = `
 SELECT
 	user_id,
@@ -44,15 +37,15 @@ WHERE user_id = ?;
 	err := d.sqlDB.GetContext(ctx, &row, query, userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return UserSettings{}, ErrUserSettingsNotFound
+			return user.Settings{}, ErrUserSettingsNotFound
 		}
-		return UserSettings{}, fmt.Errorf("get user settings by user_id=%d: %w", userID, err)
+		return user.Settings{}, fmt.Errorf("get user settings by user_id=%d: %w", userID, err)
 	}
 
 	return row.toUserSettings(), nil
 }
 
-func (d *DB) UpsertUserSettings(ctx context.Context, settings UserSettings) error {
+func (d *DB) UpsertUserSettings(ctx context.Context, settings user.Settings) error {
 	const query = `
 INSERT INTO user_default_settings (
 	user_id,
@@ -119,8 +112,8 @@ func (d *DB) DeleteUserSettings(ctx context.Context, userID int64) error {
 	return nil
 }
 
-func (r userSettingsRow) toUserSettings() UserSettings {
-	return UserSettings{
+func (r userSettingsRow) toUserSettings() user.Settings {
+	return user.Settings{
 		UserID:         r.UserID,
 		AudioBitrate:   r.AudioBitrate,
 		AudioFormat:    r.AudioFormat,
@@ -148,12 +141,4 @@ func nullStringToSubtitleLanguage(v sql.NullString) *string {
 
 	lang := v.String
 	return &lang
-}
-
-func GetDefaultUserSettings() UserSettings {
-	return UserSettings{
-		AudioBitrate: "128",
-		AudioFormat:  "mp3",
-		VideoQuality: "1080",
-	}
 }
