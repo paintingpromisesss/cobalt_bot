@@ -12,8 +12,8 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/tg_bot ./cmd/bot
 FROM alpine:3.21
 
 RUN addgroup -S app && adduser -S -G app app \
-    && apk add --no-cache ca-certificates tzdata ffmpeg python3 py3-pip \
-    && python3 -m pip install --no-cache-dir --break-system-packages yt-dlp
+    && apk add --no-cache ca-certificates tzdata ffmpeg python3 py3-pip nodejs \
+    && python3 -m pip install --no-cache-dir --break-system-packages yt-dlp==2026.03.13
 
 WORKDIR /app
 

@@ -85,6 +85,8 @@ services:
         condition: service_started
       telegram-bot-api:
         condition: service_started
+      mihomo:
+        condition: service_healthy
 
 volumes:
   telegram-bot-api-data:

@@ -1,9 +1,9 @@
 package telegram
 
 import (
-	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -13,6 +13,9 @@ import (
 type Bot struct {
 	Bot *tele.Bot
 	Log *zap.Logger
+
+	mu      sync.Mutex
+	started bool
 }
 
 func New(token string, apiURL string, clientTimeout time.Duration, log *zap.Logger) (*Bot, error) {
@@ -42,12 +45,28 @@ func New(token string, apiURL string, clientTimeout time.Duration, log *zap.Logg
 	}, nil
 }
 
-func (b *Bot) Run(ctx context.Context) {
+func (b *Bot) Start() {
+	b.mu.Lock()
+	if b.started {
+		b.mu.Unlock()
+		return
+	}
+	b.started = true
+	b.mu.Unlock()
+
 	b.Log.Info("telegram bot started", zap.String("bot_username", b.Bot.Me.Username))
-
 	go b.Bot.Start()
+}
 
-	<-ctx.Done()
+func (b *Bot) Stop() {
+	b.mu.Lock()
+	if !b.started {
+		b.mu.Unlock()
+		return
+	}
+	b.started = false
+	b.mu.Unlock()
+
 	b.Bot.Stop()
 	b.Log.Info("telegram bot stopped")
 }
