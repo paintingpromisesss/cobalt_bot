@@ -4,24 +4,27 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/paintingpromisesss/cobalt_bot/internal/cobalt"
-	"github.com/paintingpromisesss/cobalt_bot/internal/config"
-	"github.com/paintingpromisesss/cobalt_bot/internal/downloader"
-	"github.com/paintingpromisesss/cobalt_bot/internal/logger"
-	"github.com/paintingpromisesss/cobalt_bot/internal/queue"
-	"github.com/paintingpromisesss/cobalt_bot/internal/storage"
+	"github.com/paintingpromisesss/cobalt_bot/internal/adapters/cobalt"
+	"github.com/paintingpromisesss/cobalt_bot/internal/adapters/fetch"
+	"github.com/paintingpromisesss/cobalt_bot/internal/adapters/memory"
+	"github.com/paintingpromisesss/cobalt_bot/internal/adapters/sqlite"
+	"github.com/paintingpromisesss/cobalt_bot/internal/adapters/urlpolicy"
+	"github.com/paintingpromisesss/cobalt_bot/internal/adapters/ytdlp"
+	"github.com/paintingpromisesss/cobalt_bot/internal/platform/config"
+	"github.com/paintingpromisesss/cobalt_bot/internal/platform/logger"
 	"github.com/paintingpromisesss/cobalt_bot/internal/telegram"
 	"github.com/paintingpromisesss/cobalt_bot/internal/telegram/handlers"
-	pickersession "github.com/paintingpromisesss/cobalt_bot/internal/telegram/picker_session"
-	"github.com/paintingpromisesss/cobalt_bot/internal/telegram/sender"
-	"github.com/paintingpromisesss/cobalt_bot/internal/urlvalidator"
-	"github.com/paintingpromisesss/cobalt_bot/internal/ytdlp"
+	"github.com/paintingpromisesss/cobalt_bot/internal/telegram/media"
+	usecasedownload "github.com/paintingpromisesss/cobalt_bot/internal/usecase/download"
+	usecasepicker "github.com/paintingpromisesss/cobalt_bot/internal/usecase/picker"
+	usecasesettings "github.com/paintingpromisesss/cobalt_bot/internal/usecase/settings"
+	usecasestart "github.com/paintingpromisesss/cobalt_bot/internal/usecase/start"
 	"go.uber.org/zap"
 )
 
 type Container struct {
 	Logger  *zap.Logger
-	Storage *storage.DB
+	Storage *sqlite.DB
 	Bot     *telegram.Bot
 	Handler *handlers.Handler
 }
@@ -32,7 +35,7 @@ func Build(ctx context.Context, cfg config.Config) (*Container, error) {
 		return nil, fmt.Errorf("init logger: %w", err)
 	}
 
-	db, err := storage.New(cfg.Storage.DBPath)
+	db, err := sqlite.New(cfg.Storage.DBPath)
 	if err != nil {
 		_ = log.Sync()
 		return nil, fmt.Errorf("init db: %w", err)
@@ -45,9 +48,10 @@ func Build(ctx context.Context, cfg config.Config) (*Container, error) {
 		return nil, fmt.Errorf("init telegram bot: %w", err)
 	}
 
-	queueManager := queue.NewRequestQueue()
-	cobaltClient := cobalt.NewCobaltClient(cfg.Cobalt.BaseURL, cfg.Timeouts.Request)
-	fileDownloader := downloader.NewDownloader(cfg.Timeouts.Download, cfg.Storage.TempDir, cfg.Storage.MaxFileBytes)
+	queueManager := memory.NewUserJobGuard()
+	cobaltClient := cobalt.NewClient(cfg.Cobalt.BaseURL, cfg.Timeouts.Request)
+	cobaltGateway := cobalt.NewDownloadGateway(cobaltClient)
+	fileDownloader := fetch.NewDownloader(cfg.Timeouts.Download, cfg.Storage.TempDir, cfg.Storage.MaxFileBytes)
 	ytDLPClient := ytdlp.NewClient(
 		cfg.Storage.TempDir,
 		cfg.YTDLP.MaxMediaDurationSeconds,
@@ -55,7 +59,9 @@ func Build(ctx context.Context, cfg config.Config) (*Container, error) {
 		cfg.YTDLP.CurrentlyLiveAvailable,
 		cfg.YTDLP.PlaylistAvailable,
 	)
-	fileSender := sender.NewFileSender(log, cfg.Timeouts.FFprobe, cfg.Timeouts.FFmpeg)
+	ytDLPGateway := ytdlp.NewDownloadGateway(ytDLPClient)
+	mediaSender := media.NewSender(log, cfg.Timeouts.FFprobe, cfg.Timeouts.FFmpeg)
+	mediaService := media.NewService(log, fileDownloader, ytDLPClient, mediaSender)
 
 	instanceInfo, err := cobaltClient.GetInstanceInfo(ctx)
 	if err != nil {
@@ -65,8 +71,17 @@ func Build(ctx context.Context, cfg config.Config) (*Container, error) {
 	}
 
 	availableServices := instanceInfo.Cobalt.Services
-	urlValidator := urlvalidator.NewURLValidator(availableServices)
-	pickerSessionManager := pickersession.NewPickerSessionManager(ctx, cfg.PickerSession.TTL, cfg.PickerSession.CleanupInterval)
+	urlValidator := urlpolicy.NewURLValidator(availableServices)
+	pickerSessionManager := memory.NewPickerStore(ctx, cfg.PickerSession.TTL, cfg.PickerSession.CleanupInterval)
+	settingsService := usecasesettings.NewService(db, sqlite.ErrUserSettingsNotFound)
+	downloadService := usecasedownload.NewService(
+		settingsService,
+		urlValidator,
+		cobaltGateway,
+		ytDLPGateway,
+	)
+	pickerService := usecasepicker.NewService(pickerSessionManager)
+	startService := usecasestart.NewService(settingsService, availableServices)
 
 	handler := handlers.NewHandler(
 		ctx,
@@ -74,16 +89,12 @@ func Build(ctx context.Context, cfg config.Config) (*Container, error) {
 		cfg.Timeouts.Download,
 		cfg.YTDLP.MaxMediaDurationSeconds,
 		tgBot,
-		db,
 		queueManager,
 		log,
-		cobaltClient,
-		fileDownloader,
-		ytDLPClient,
-		urlValidator,
-		fileSender,
-		availableServices,
-		pickerSessionManager,
+		mediaService,
+		downloadService,
+		pickerService,
+		startService,
 	)
 
 	return &Container{

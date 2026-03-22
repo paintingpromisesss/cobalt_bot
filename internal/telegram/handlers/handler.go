@@ -4,15 +4,13 @@ import (
 	"context"
 	"time"
 
-	"github.com/paintingpromisesss/cobalt_bot/internal/cobalt"
-	"github.com/paintingpromisesss/cobalt_bot/internal/downloader"
-	"github.com/paintingpromisesss/cobalt_bot/internal/queue"
-	"github.com/paintingpromisesss/cobalt_bot/internal/storage"
+	"github.com/paintingpromisesss/cobalt_bot/internal/adapters/memory"
 	"github.com/paintingpromisesss/cobalt_bot/internal/telegram"
-	pickersession "github.com/paintingpromisesss/cobalt_bot/internal/telegram/picker_session"
-	"github.com/paintingpromisesss/cobalt_bot/internal/telegram/sender"
-	"github.com/paintingpromisesss/cobalt_bot/internal/urlvalidator"
-	"github.com/paintingpromisesss/cobalt_bot/internal/ytdlp"
+	"github.com/paintingpromisesss/cobalt_bot/internal/telegram/media"
+	"github.com/paintingpromisesss/cobalt_bot/internal/telegram/presenter"
+	usecasedownload "github.com/paintingpromisesss/cobalt_bot/internal/usecase/download"
+	usecasepicker "github.com/paintingpromisesss/cobalt_bot/internal/usecase/picker"
+	usecasestart "github.com/paintingpromisesss/cobalt_bot/internal/usecase/start"
 	"go.uber.org/zap"
 	tele "gopkg.in/telebot.v4"
 )
@@ -23,42 +21,34 @@ type Handler struct {
 	downloadTimeout      time.Duration
 	maxMediaDurationSecs int
 	tb                   *telegram.Bot
-	storage              *storage.DB
-	queueManager         *queue.RequestQueue
+	userJobGuard         *memory.UserJobGuard
 	logger               *zap.Logger
-	cobaltClient         *cobalt.CobaltClient
-	downloader           *downloader.Downloader
-	ytDLPClient          *ytdlp.Client
-	urlValidator         *urlvalidator.URLValidator
-	sender               *sender.FileSender
-	availableServices    []string
-	pickerSessionManager *pickersession.PickerSessionManager
+	mediaService         *media.Service
+	downloadService      *usecasedownload.Service
+	pickerService        *usecasepicker.Service
+	startService         *usecasestart.Service
 }
 
-func NewHandler(appCtx context.Context, requestTimeout time.Duration, downloadTimeout time.Duration, maxMediaDurationSecs int, tb *telegram.Bot, storage *storage.DB, queueManager *queue.RequestQueue, logger *zap.Logger, cobaltClient *cobalt.CobaltClient, downloader *downloader.Downloader, ytDLPClient *ytdlp.Client, urlValidator *urlvalidator.URLValidator, sender *sender.FileSender, availableServices []string, pickerSessionManager *pickersession.PickerSessionManager) *Handler {
+func NewHandler(appCtx context.Context, requestTimeout time.Duration, downloadTimeout time.Duration, maxMediaDurationSecs int, tb *telegram.Bot, userJobGuard *memory.UserJobGuard, logger *zap.Logger, mediaService *media.Service, downloadService *usecasedownload.Service, pickerService *usecasepicker.Service, startService *usecasestart.Service) *Handler {
 	return &Handler{
 		appCtx:               appCtx,
 		requestTimeout:       requestTimeout,
 		downloadTimeout:      downloadTimeout,
 		maxMediaDurationSecs: maxMediaDurationSecs,
 		tb:                   tb,
-		storage:              storage,
-		queueManager:         queueManager,
+		userJobGuard:         userJobGuard,
 		logger:               logger,
-		cobaltClient:         cobaltClient,
-		downloader:           downloader,
-		ytDLPClient:          ytDLPClient,
-		urlValidator:         urlValidator,
-		sender:               sender,
-		availableServices:    availableServices,
-		pickerSessionManager: pickerSessionManager,
+		mediaService:         mediaService,
+		downloadService:      downloadService,
+		pickerService:        pickerService,
+		startService:         startService,
 	}
 }
 
 func (h *Handler) RegisterHandlers() error {
 	h.tb.Bot.Handle("/start", h.handleStart)
 	h.tb.Bot.Handle(tele.OnText, h.handleMessage)
-	h.tb.Bot.Handle(&tele.Btn{Unique: CobaltPickerButtonUnique}, h.handleCobaltPickerCallback)
-	h.tb.Bot.Handle(&tele.Btn{Unique: YtDLPPickerButtonUnique}, h.handleYtDLPPickerCallback)
+	h.tb.Bot.Handle(&tele.Btn{Unique: presenter.CobaltPickerButtonUnique}, h.handleCobaltPickerCallback)
+	h.tb.Bot.Handle(&tele.Btn{Unique: presenter.YtDLPPickerButtonUnique}, h.handleYtDLPPickerCallback)
 	return nil
 }

@@ -2,186 +2,101 @@ package handlers
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"time"
 
-	"github.com/paintingpromisesss/cobalt_bot/internal/cobalt"
-	"github.com/paintingpromisesss/cobalt_bot/internal/domain/media"
-	domainUser "github.com/paintingpromisesss/cobalt_bot/internal/domain/user"
-	"github.com/paintingpromisesss/cobalt_bot/internal/storage"
-	"github.com/paintingpromisesss/cobalt_bot/internal/telegram"
+	usecasedownload "github.com/paintingpromisesss/cobalt_bot/internal/usecase/download"
+	usecasepicker "github.com/paintingpromisesss/cobalt_bot/internal/usecase/picker"
 	"go.uber.org/zap"
 	tele "gopkg.in/telebot.v4"
 )
 
-type sessionResult string
-
-const (
-	sessionResultCompleted         sessionResult = "completed"
-	sessionResultAwaitingSelection sessionResult = "awaiting_selection"
-)
-
 func (h *Handler) handleMessage(c tele.Context) error {
-	metaCtx, cancelMeta := context.WithTimeout(h.appCtx, h.requestTimeout)
-	downloadCtx, cancelDownload := context.WithTimeout(h.appCtx, h.downloadTimeout)
-	defer cancelMeta()
-	defer cancelDownload()
-
 	userID := c.Sender().ID
 	username := c.Sender().Username
 	user := c.Recipient()
 	url := c.Text()
 	sessionStartedAt := time.Now()
 
-	normalizedURL, ok := h.urlValidator.Validate(url)
-	if !ok {
-		h.logger.Warn(
-			"user sent invalid url",
-			zap.Int64("user_id", userID),
-			zap.String("username", username),
-			zap.String("input", url),
-		)
-		return c.Send("Похоже, это невалидная или недоступная ссылка. Отправьте корректный URL.")
-	}
+	err := h.runDownloadJob(userID, func(downloadCtx context.Context) error {
+		metaCtx, cancelMeta := context.WithTimeout(downloadCtx, h.requestTimeout)
+		defer cancelMeta()
 
-	url = normalizedURL
-
-	h.logger.Info(
-		"user started download session",
-		zap.Int64("user_id", userID),
-		zap.String("username", username),
-		zap.String("url", url),
-	)
-
-	settings, err := h.storage.GetUserSettings(metaCtx, userID)
-	if err != nil {
-		if errors.Is(err, storage.ErrUserSettingsNotFound) {
-			if err := h.storage.EnsureUserSettings(metaCtx, userID); err != nil {
-				return err
-			}
-			settings = domainUser.DefaultSettings()
-			settings.UserID = userID
-		} else {
+		statusMsg, err := c.Bot().Send(user, "Ваш запрос принят. Получаю информацию...")
+		if err != nil {
 			return err
 		}
-	}
 
-	statusMsg, err := c.Bot().Send(user, "Ваш запрос принят. Получаю информацию...")
+		result, err := h.downloadService.Handle(metaCtx, usecasedownload.Input{
+			UserID: userID,
+			URL:    url,
+		})
+		if err != nil {
+			h.logger.Error(
+				"download session failed",
+				zap.Int64("user_id", userID),
+				zap.String("username", username),
+				zap.Duration("session_duration", time.Since(sessionStartedAt)),
+				zap.Error(err),
+			)
+			return c.Send(h.pickerErrorToText(err))
+		}
+
+		if _, ok := result.(usecasedownload.InvalidURLResult); ok {
+			h.logger.Warn(
+				"user sent invalid url",
+				zap.Int64("user_id", userID),
+				zap.String("username", username),
+				zap.String("input", url),
+			)
+			return editMessageText(c, statusMsg, "Неправильная ссылка. Пожалуйста, проверьте URL и попробуйте снова.")
+		}
+
+		url = result.NormalizedURL()
+
+		h.logger.Info(
+			"user started download session",
+			zap.Int64("user_id", userID),
+			zap.String("username", username),
+			zap.String("url", url),
+		)
+
+		fields := []zap.Field{
+			zap.Int64("user_id", userID),
+			zap.String("username", username),
+			zap.Duration("session_duration", time.Since(sessionStartedAt)),
+		}
+
+		switch r := result.(type) {
+		case usecasedownload.CobaltDirectResult:
+			if err := h.mediaService.SendCobaltSingle(c, downloadCtx, statusMsg, user, userID, url, r.File); err != nil {
+				return h.handleStatusMessageError(c, statusMsg, userID, username, err)
+			}
+		case usecasedownload.CobaltPickerResult:
+			if err := h.initCobaltPicker(c, statusMsg, usecasepicker.InitCobaltInput{
+				UserID: userID,
+				Data:   r.Data,
+			}); err != nil {
+				return h.handleStatusMessageError(c, statusMsg, userID, username, err)
+			}
+			h.logger.Info("download session awaiting selection", fields...)
+		case usecasedownload.YtDLPPickerResult:
+			if err := h.initYtDLPPicker(c, statusMsg, userID, &r.Data); err != nil {
+				return h.handleStatusMessageError(c, statusMsg, userID, username, err)
+			}
+			h.logger.Info("download session awaiting selection", fields...)
+		case usecasedownload.YtDLPDirectResult:
+			if err := h.mediaService.SendYtDLPOption(c, downloadCtx, statusMsg, user, r.Option); err != nil {
+				return h.handleStatusMessageError(c, statusMsg, userID, username, err)
+			}
+		default:
+			return editMessageText(c, statusMsg, "Не удалось определить сценарий загрузки.")
+		}
+
+		return nil
+	})
 	if err != nil {
 		return err
 	}
 
-	isYoutubeURL, contentType := h.ytDLPClient.IdentifyYoutubeURL(url)
-
-	result := sessionResultCompleted
-	err = h.queueManager.Run(userID, func() error {
-		if !isYoutubeURL {
-			var runErr error
-			result, runErr = h.processCobaltRequest(c, downloadCtx, metaCtx, statusMsg, user, userID, url, username, settings)
-			return runErr
-		}
-
-		var runErr error
-		result, runErr = h.processYoutubeRequest(c, downloadCtx, metaCtx, statusMsg, user, userID, url, username, settings, contentType)
-		return runErr
-	})
-	if err != nil {
-		h.logger.Error(
-			"download session failed",
-			zap.Int64("user_id", userID),
-			zap.String("username", username),
-			zap.Duration("session_duration", time.Since(sessionStartedAt)),
-			zap.Error(err),
-		)
-
-		if _, err := c.Bot().Edit(statusMsg, h.pickerErrorToText(err)); err != nil {
-			h.logger.Error("failed to edit status message with error", zap.Int64("user_id", userID), zap.String("username", username), zap.Error(err))
-			return err
-		}
-
-		return telegram.MarkHandled(err)
-	}
-
-	fields := []zap.Field{
-		zap.Int64("user_id", userID),
-		zap.String("username", username),
-		zap.Duration("session_duration", time.Since(sessionStartedAt)),
-	}
-	if result == sessionResultAwaitingSelection {
-		h.logger.Info("download session awaiting selection", fields...)
-	}
-
 	return nil
-}
-
-func (h *Handler) processCobaltRequest(c tele.Context, downloadCtx, metaCtx context.Context, statusMsg *tele.Message, user tele.Recipient, userID int64, url, username string, userSettings domainUser.Settings) (sessionResult, error) {
-	cobaltRequest := cobalt.GetCobaltRequest(url, userSettings)
-	resp, err := h.cobaltClient.GetContentURL(metaCtx, cobaltRequest)
-	if err != nil {
-		return "", err
-	}
-
-	h.logger.Info(
-		"cobalt content response received",
-		zap.Int64("user_id", userID),
-		zap.String("username", username),
-		zap.String("status", string(resp.Status)),
-		zap.String("url", resp.Url),
-		zap.String("filename", resp.Filename),
-	)
-
-	switch resp.Status {
-	case cobalt.StatusRedirect, cobalt.StatusTunnel:
-		if err := h.handleMessageStatusSingle(c, downloadCtx, statusMsg, user, userID, url, resp); err != nil {
-			return "", err
-		}
-		return sessionResultCompleted, nil
-	case cobalt.StatusPicker:
-		if err := h.handleMessageStatusPicker(c, statusMsg, userID, resp); err != nil {
-			return "", err
-		}
-		return sessionResultAwaitingSelection, nil
-	case cobalt.StatusError:
-		return "", cobaltErrorToErr(resp.Error)
-	default:
-		return "", fmt.Errorf("unsupported cobalt status: %q", resp.Status)
-	}
-}
-
-func (h *Handler) processYoutubeRequest(c tele.Context, downloadCtx, metaCtx context.Context, statusMsg *tele.Message, user tele.Recipient, userID int64, url, username string, userSettings domainUser.Settings, contentType media.YouTubeContentKind) (sessionResult, error) {
-	meta, err := h.ytDLPClient.GetMetadata(metaCtx, url)
-	if err != nil {
-		return "", err
-	}
-
-	h.logger.Info(
-		"youtube metadata received",
-		zap.Int64("user_id", userID),
-		zap.String("username", username),
-		zap.String("url", url),
-		zap.String("title", meta.Title),
-		zap.Bool("is_live", meta.IsLive),
-		zap.String("media_type", meta.MediaType),
-	)
-
-	switch contentType {
-	case media.YouTubeVideo:
-		if err := h.handleYoutubeVideoRequest(c, statusMsg, userID, meta); err != nil {
-			return "", err
-		}
-		return sessionResultAwaitingSelection, nil
-	case media.YouTubeMusic:
-		if err := h.handleYoutubeMusicRequest(c, downloadCtx, statusMsg, user, meta); err != nil {
-			return "", err
-		}
-		return sessionResultCompleted, nil
-	case media.YouTubeShorts:
-		if err := h.handleYoutubeShortsRequest(c, downloadCtx, statusMsg, user, meta); err != nil {
-			return "", err
-		}
-		return sessionResultCompleted, nil
-	default:
-		return "", fmt.Errorf("unsupported youtube content type: %q", contentType)
-	}
 }

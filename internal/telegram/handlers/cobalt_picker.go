@@ -2,72 +2,80 @@ package handlers
 
 import (
 	"context"
-	"fmt"
-	"strconv"
-	"strings"
 
-	"github.com/paintingpromisesss/cobalt_bot/internal/telegram"
-	pickersession "github.com/paintingpromisesss/cobalt_bot/internal/telegram/picker_session"
-	"go.uber.org/zap"
+	"github.com/paintingpromisesss/cobalt_bot/internal/domain/picker"
+	"github.com/paintingpromisesss/cobalt_bot/internal/telegram/presenter"
+	usecasepicker "github.com/paintingpromisesss/cobalt_bot/internal/usecase/picker"
 	tele "gopkg.in/telebot.v4"
 )
 
 func (h *Handler) handleCobaltPickerCallback(c tele.Context) error {
-	if err := c.Respond(); err != nil {
-		h.logger.Warn("failed to respond to picker callback", zap.Error(err))
-	}
+	h.respondToCallback(c)
 
 	userID := c.Sender().ID
 	statusMsg := c.Message()
 
-	action, sessionID, optionIdx, err := parseCobaltPickerCallbackData(c.Data())
+	action, sessionID, optionIdx, err := presenter.ParseCobaltPickerCallbackData(c.Data())
 	if err != nil {
-		h.logger.Warn("failed to parse picker callback data", zap.Int64("user_id", userID), zap.String("data", c.Data()), zap.Error(err))
-
-		if err := c.Edit("Не удалось распознать действие. Пожалуйста, попробуйте снова."); err != nil {
-			return err
-		}
-
-		return telegram.MarkHandled(err)
+		return h.handleInvalidCallbackData(c, userID, c.Data(), err)
 	}
 
 	switch action {
-	case ToggleAction:
-		pickerView, err := h.pickerSessionManager.ToggleCobaltPickerOption(sessionID, userID, optionIdx)
+	case picker.CobaltActionToggle:
+		result, err := h.pickerService.HandleCobalt(usecasepicker.CobaltInput{
+			Action:    picker.CobaltActionToggle,
+			SessionID: sessionID,
+			UserID:    userID,
+			OptionIdx: optionIdx,
+		})
 		if err != nil {
 			return h.handlePickerCallbackError(c, statusMsg, err)
 		}
-		return h.renderPickerKeyboard(c, statusMsg, sessionID, &pickerView)
-	case SelectAllAction:
-		pickerView, err := h.pickerSessionManager.MarkAllCobaltPickerOptions(sessionID, userID, true)
+		return h.renderCobaltPicker(c, statusMsg, sessionID, result.View)
+	case picker.CobaltActionSelectAll:
+		result, err := h.pickerService.HandleCobalt(usecasepicker.CobaltInput{
+			Action:    picker.CobaltActionSelectAll,
+			SessionID: sessionID,
+			UserID:    userID,
+		})
 		if err != nil {
 			return h.handlePickerCallbackError(c, statusMsg, err)
 		}
-		return h.renderPickerKeyboard(c, statusMsg, sessionID, &pickerView)
-	case ClearAllAction:
-		pickerView, err := h.pickerSessionManager.MarkAllCobaltPickerOptions(sessionID, userID, false)
+		return h.renderCobaltPicker(c, statusMsg, sessionID, result.View)
+	case picker.CobaltActionClearAll:
+		result, err := h.pickerService.HandleCobalt(usecasepicker.CobaltInput{
+			Action:    picker.CobaltActionClearAll,
+			SessionID: sessionID,
+			UserID:    userID,
+		})
 		if err != nil {
 			return h.handlePickerCallbackError(c, statusMsg, err)
 		}
-		return h.renderPickerKeyboard(c, statusMsg, sessionID, &pickerView)
-	case DownloadAction:
-		options, err := h.pickerSessionManager.ConsumeSelectedCobaltOptions(sessionID, userID)
+		return h.renderCobaltPicker(c, statusMsg, sessionID, result.View)
+	case picker.CobaltActionDownload:
+		result, err := h.pickerService.HandleCobalt(usecasepicker.CobaltInput{
+			Action:    picker.CobaltActionDownload,
+			SessionID: sessionID,
+			UserID:    userID,
+		})
 		if err != nil {
 			return h.handlePickerCallbackError(c, statusMsg, err)
 		}
 
-		err = h.queueManager.Run(userID, func() error {
-			downloadCtx, cancel := context.WithTimeout(h.appCtx, h.downloadTimeout)
-			defer cancel()
-			return h.DownloadAndSendSelectedOptions(c, statusMsg, downloadCtx, userID, c.Recipient(), options)
+		err = h.runDownloadJob(userID, func(downloadCtx context.Context) error {
+			return h.mediaService.SendCobaltOptions(c, statusMsg, downloadCtx, userID, c.Recipient(), result.Options)
 		})
 
 		if err != nil {
 			return h.handlePickerCallbackError(c, statusMsg, err)
 		}
 		return nil
-	case CancelAction:
-		err := h.pickerSessionManager.DeleteSession(sessionID, userID, pickersession.PickerSessionTypeCobalt)
+	case picker.CobaltActionCancel:
+		_, err := h.pickerService.HandleCobalt(usecasepicker.CobaltInput{
+			Action:    picker.CobaltActionCancel,
+			SessionID: sessionID,
+			UserID:    userID,
+		})
 		if err != nil {
 			return h.handlePickerCallbackError(c, statusMsg, err)
 		}
@@ -77,21 +85,4 @@ func (h *Handler) handleCobaltPickerCallback(c tele.Context) error {
 		_, err := c.Bot().Edit(statusMsg, "Неизвестное действие. Пожалуйста, попробуйте снова.")
 		return err
 	}
-}
-
-func parseCobaltPickerCallbackData(data string) (action, sessionID string, optionIdx int, err error) {
-	parts := strings.Split(strings.TrimSpace(data), ":")
-	if len(parts) < 2 || len(parts) > 3 {
-		return "", "", 0, fmt.Errorf("invalid callback data format")
-	}
-
-	action, sessionID, optionIdx = parts[0], parts[1], -1
-	if len(parts) == 3 {
-		idx, convErr := strconv.Atoi(parts[2])
-		if convErr != nil {
-			return "", "", 0, fmt.Errorf("invalid option index: %v", convErr)
-		}
-		optionIdx = idx
-	}
-	return action, sessionID, optionIdx, nil
 }

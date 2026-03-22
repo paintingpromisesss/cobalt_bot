@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/paintingpromisesss/cobalt_bot/internal/bootstrap"
-	"github.com/paintingpromisesss/cobalt_bot/internal/config"
+	"github.com/paintingpromisesss/cobalt_bot/internal/platform/config"
 )
 
 func main() {
