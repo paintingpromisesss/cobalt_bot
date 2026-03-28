@@ -44,6 +44,18 @@ services:
       TUNNEL_RATELIMIT_MAX: ${COBALT_TUNNEL_RATELIMIT_MAX}
       ENABLE_DEPRECATED_YOUTUBE_HLS: ${COBALT_ENABLE_DEPRECATED_YOUTUBE_HLS}
       YOUTUBE_ALLOW_BETTER_AUDIO: ${COBALT_YOUTUBE_ALLOW_BETTER_AUDIO}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "const net=require('node:net');const socket=net.connect({host:'127.0.0.1',port:Number(process.env.API_PORT||9000)},()=>{socket.end();process.exit(0)});socket.on('error',()=>process.exit(1));socket.setTimeout(5000,()=>{socket.destroy();process.exit(1)});",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
     depends_on:
       mihomo:
         condition: service_healthy
@@ -62,6 +74,7 @@ services:
       TELEGRAM_MAX_WEBHOOK_CONNECTIONS: "100"
       TELEGRAM_VERBOSITY: "1"
     volumes:
+      - ./tmp:/app/tmp
       - telegram-bot-api-data:/var/lib/telegram-bot-api
     depends_on:
       mihomo:
@@ -82,7 +95,7 @@ services:
       - ./tmp:/app/tmp
     depends_on:
       cobalt:
-        condition: service_started
+        condition: service_healthy
       telegram-bot-api:
         condition: service_started
       mihomo:

@@ -65,6 +65,8 @@ func logStartupConfig(log *zap.Logger, cfg config.Config) {
 
 	log.Info(
 		"config loaded",
+		zap.String("telegram_bot_api_url", cfg.Telegram.BotAPIURL),
+		zap.Bool("telegram_local_file_mode", cfg.Telegram.LocalFileMode),
 		zap.String("cobalt_base_url", cfg.Cobalt.BaseURL),
 		zap.Int64("max_file_bytes", cfg.Storage.MaxFileBytes),
 		zap.String("db_path", cfg.Storage.DBPath),
@@ -76,4 +78,10 @@ func logStartupConfig(log *zap.Logger, cfg config.Config) {
 		zap.Duration("ffmpeg_timeout", cfg.Timeouts.FFmpeg),
 		zap.String("log_level", cfg.Logging.Level),
 	)
+
+	if cfg.Telegram.LocalFileMode {
+		log.Warn(
+			"telegram local file mode is enabled; make sure the bot was logged out from the cloud Bot API before the first stable run against the local server",
+		)
+	}
 }

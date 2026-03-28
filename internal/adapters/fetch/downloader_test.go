@@ -50,6 +50,13 @@ func TestDownloadSuccess(t *testing.T) {
 	if string(content) != "hello" {
 		t.Fatalf("unexpected file contents: %q", string(content))
 	}
+	info, err := os.Stat(got.Path)
+	if err != nil {
+		t.Fatalf("failed to stat downloaded file: %v", err)
+	}
+	if info.Mode().Perm() != 0o644 {
+		t.Fatalf("expected permissions 0644, got %o", info.Mode().Perm())
+	}
 }
 
 func TestDownloadDetectMIMEFromContentWhenHeaderGeneric(t *testing.T) {

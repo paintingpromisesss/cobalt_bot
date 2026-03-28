@@ -97,6 +97,10 @@ func (d *Downloader) Download(ctx context.Context, fileURL, filename string, req
 		_ = os.Remove(filePath)
 		return DownloadResult{}, fmt.Errorf("close temp file: %w", err)
 	}
+	if err := os.Chmod(filePath, 0o644); err != nil {
+		_ = os.Remove(filePath)
+		return DownloadResult{}, fmt.Errorf("set temp file permissions: %w", err)
+	}
 
 	return DownloadResult{
 		Path:         filePath,

@@ -3,6 +3,7 @@ package ytdlp
 import (
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -58,9 +59,8 @@ func (c *Client) IdentifyYoutubeURL(url string) (bool, media.YouTubeContentKind)
 func (c *Client) buildDownloadArgs(url string, formatID string, selectedFormat *media.DownloadFormat) []string {
 	args := []string{
 		"-f", formatID,
-		"-P", "home:" + c.tempDir,
-		"-P", "temp:" + c.tempDir,
-		"-o", "%(title)s [%(id)s] [%(format_id)s].%(ext)s",
+		"-P", "temp:" + filepath.Join(c.tempDir, ".parts"),
+		"-o", filepath.Join(c.tempDir, "%(title)s [%(id)s] [%(format_id)s].%(ext)s"),
 	}
 	args = appendJSRuntimeArgs(args, c.JSRuntimeSpec)
 
@@ -106,6 +106,36 @@ func buildDownloadPostProcessArgs(formatID string, selectedFormat *media.Downloa
 	}
 }
 
+func (c *Client) defaultEnvironment() []string {
+	env := os.Environ()
+
+	if strings.TrimSpace(c.tempDir) == "" {
+		return env
+	}
+
+	env = setEnvironmentValue(env, "HOME", filepath.Join(c.tempDir, ".home"))
+	env = setEnvironmentValue(env, "XDG_CACHE_HOME", filepath.Join(c.tempDir, ".cache"))
+	env = setEnvironmentValue(env, "TMPDIR", c.tempDir)
+	env = setEnvironmentValue(env, "TEMP", c.tempDir)
+	env = setEnvironmentValue(env, "TMP", c.tempDir)
+
+	return env
+}
+
+func setEnvironmentValue(environment []string, key, value string) []string {
+	prefix := key + "="
+	filtered := make([]string, 0, len(environment)+1)
+
+	for _, entry := range environment {
+		if strings.HasPrefix(entry, prefix) {
+			continue
+		}
+		filtered = append(filtered, entry)
+	}
+
+	return append(filtered, prefix+value)
+}
+
 func appendJSRuntimeArgs(args []string, runtimeSpec string) []string {
 	runtimeSpec = strings.TrimSpace(runtimeSpec)
 	if runtimeSpec == "" {
@@ -127,40 +157,44 @@ func parseDownloadedFilePath(output []byte) (string, error) {
 	return "", errors.New("yt-dlp did not return downloaded filepath")
 }
 
-func (f Format) GetDisplayName(audioFormat, videoFormat *Format) string {
-	if audioFormat != nil && videoFormat != nil {
-		return fmt.Sprintf(
-			"%dx%d [%s] [%s] + %dkbps [%s] [%s] (merged)",
-			videoFormat.Width,
-			videoFormat.Height,
-			formatCodecLabel(videoFormat.VCodec),
-			videoFormat.FormatID,
-			audioFormat.GetRoundedABR(),
-			formatCodecLabel(audioFormat.ACodec),
-			audioFormat.FormatID,
-		)
-	}
+func (f Format) GetDisplayName() string {
 
 	if f.IsAudio() && !f.IsVideo() {
-		return fmt.Sprintf("%dkbps [%s] [%s]", f.GetRoundedABR(), formatCodecLabel(f.ACodec), f.FormatID)
+		return fmt.Sprintf("Аудио %dkbps [%s]", f.GetRoundedABR(), formatCodecLabel(f.ACodec))
 	}
 	if f.IsVideo() && !f.IsAudio() {
-		return fmt.Sprintf("%dx%d [%s] [%s]", f.Width, f.Height, formatCodecLabel(f.VCodec), f.FormatID)
+		return fmt.Sprintf("%dx%d %dkbps [%s]", f.Width, f.Height, f.GetRoundedVBR(), formatCodecLabel(f.VCodec))
 	}
 
 	if f.IsAudio() && f.IsVideo() {
 		return fmt.Sprintf(
-			"%dx%d [%s] + %dkbps [%s] (muxed) [%s]",
+			"%dx%d %dkbps [%s] + %dkbps [%s]",
 			f.Width,
 			f.Height,
+			f.GetRoundedVBR(),
 			formatCodecLabel(f.VCodec),
 			f.GetRoundedABR(),
 			formatCodecLabel(f.ACodec),
-			f.FormatID,
 		)
 	}
 
 	return f.FormatID
+}
+
+func MergeFormats(videoFormat, audioFormat *Format) Format {
+	return Format{
+		FormatID:   videoFormat.FormatID + "+" + audioFormat.FormatID,
+		VCodec:     videoFormat.VCodec,
+		ACodec:     audioFormat.ACodec,
+		Width:      videoFormat.Width,
+		Height:     videoFormat.Height,
+		FileSize:   videoFormat.FileSize + audioFormat.FileSize,
+		ABR:        audioFormat.ABR,
+		VBR:        videoFormat.VBR,
+		Ext:        videoFormat.Ext,
+		Container:  videoFormat.Container,
+		Resolution: videoFormat.Resolution,
+	}
 }
 
 func formatCodecLabel(codec string) string {

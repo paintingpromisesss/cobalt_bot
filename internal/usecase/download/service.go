@@ -194,31 +194,6 @@ func buildYtDLPPickerInitData(meta *source.YtDLPMetadata) *domainpicker.YtDLPIni
 		optionsByTab[tab] = append(optionsByTab[tab], option)
 	}
 
-	if len(meta.RequestedDownloads) > 0 {
-		bestAudioFormat := meta.RequestedDownloads[0].GetBestAudioFormat()
-		if bestAudioFormat != nil {
-			for _, format := range meta.Formats {
-				if detectTabForFormat(format) != domainpicker.YtDLPTabVideoOnly {
-					continue
-				}
-
-				option := domainpicker.YtDLPOption{
-					DisplayName:  format.DisplayName,
-					ContentURL:   meta.OriginalURL,
-					FormatID:     format.FormatID + "+" + bestAudioFormat.FormatID,
-					ThumbnailURL: meta.ThumbnailURL,
-					FileSize:     bestAudioFormat.FileSize + format.FileSize,
-					Duration:     time.Duration(meta.DurationSeconds) * time.Second,
-					Format: media.DownloadFormat{
-						HasAudio: true,
-						HasVideo: true,
-					},
-				}
-				optionsByTab[domainpicker.YtDLPTabAudioVideo] = append(optionsByTab[domainpicker.YtDLPTabAudioVideo], option)
-			}
-		}
-	}
-
 	return &domainpicker.YtDLPInitData{
 		ContentName:  meta.Title,
 		OptionsByTab: optionsByTab,

@@ -49,7 +49,7 @@ func BuildCobaltPickerMessage(sessionID string, pickerView *picker.CobaltView) (
 
 	markup.Inline(rows...)
 
-	message := fmt.Sprintf("Найдено файлов: %d. Выбрано: %d.\n Отметьте нужные и нажмите «Скачать».", total, selected)
+	message := fmt.Sprintf("Найдено файлов: %d. Выбрано: %d.\nОтметьте нужные и нажмите «Скачать».", total, selected)
 	return markup, message
 }
 
@@ -72,7 +72,7 @@ func BuildYtDLPConfirmationMessage(sessionID string, option picker.YtDLPOption) 
 
 	markup.Inline(rows...)
 
-	message := fmt.Sprintf("Выбранный формат: %s\n Размер: %s\n Скачать?", option.DisplayName, formatFileSize(option.FileSize))
+	message := fmt.Sprintf("Выбранный формат: %s\nРазмер: %s\nСкачать?", option.DisplayName, formatFileSize(option.FileSize))
 	return markup, message
 }
 
@@ -88,7 +88,7 @@ func buildYtDLPTabsMessage(sessionID string, pickerView *picker.YtDLPView) (*tel
 	rows = append(rows, markup.Row(markup.Data("Отменить", YtDLPPickerButtonUnique, cancelPayload)))
 
 	markup.Inline(rows...)
-	message := fmt.Sprintf("Скачиваемый контент: %s \n Выберите опцию скачивания:", pickerView.ContentName)
+	message := fmt.Sprintf("Скачиваемый контент: %s \nВыберите опцию скачивания:", pickerView.ContentName)
 	return markup, message
 }
 
@@ -105,18 +105,18 @@ func buildYtDLPOptionsMessage(sessionID string, pickerView *picker.YtDLPView) (*
 	rows = append(rows, markup.Row(markup.Data("Назад", YtDLPPickerButtonUnique, backPayload)))
 
 	markup.Inline(rows...)
-	message := fmt.Sprintf("Выберите формат скачивания для: %s\n (тип: %s)", pickerView.ContentName, pickerView.ActiveTab)
+	message := fmt.Sprintf("Выберите формат скачивания для: %s\n(тип: %s)", pickerView.ContentName, getYtDLPTabLabel(pickerView.ActiveTab))
 	return markup, message
 }
 
 func getYtDLPTabLabel(tab picker.YtDLPTab) string {
 	switch tab {
 	case picker.YtDLPTabAudioOnly:
-		return "Аудио (только звук)"
+		return "Аудио"
 	case picker.YtDLPTabVideoOnly:
-		return "Видео (только картинка)"
+		return "Видео"
 	case picker.YtDLPTabAudioVideo:
-		return "Аудио + Видео (звук и картинка в одном файле)"
+		return "Аудио + Видео"
 	default:
 		return "Неизвестно"
 	}

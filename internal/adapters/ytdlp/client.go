@@ -31,8 +31,10 @@ type Client struct {
 }
 
 func NewClient(tempDir string, maxDurationSecs int, maxFileBytes int64, currentlyLiveAvailable bool, playlistAvailable bool, useJSRuntime bool) *Client {
+	normalizedTempDir := normalizeTempDir(tempDir)
+
 	return &Client{
-		tempDir:                tempDir,
+		tempDir:                normalizedTempDir,
 		MaxDurationSecs:        maxDurationSecs,
 		MaxFileBytes:           maxFileBytes,
 		CurrentlyLiveAvailable: currentlyLiveAvailable,
@@ -41,17 +43,49 @@ func NewClient(tempDir string, maxDurationSecs int, maxFileBytes int64, currentl
 	}
 }
 
+func normalizeTempDir(tempDir string) string {
+	trimmed := strings.TrimSpace(tempDir)
+	if trimmed == "" {
+		return ""
+	}
+
+	absolutePath, err := filepath.Abs(trimmed)
+	if err != nil {
+		return trimmed
+	}
+
+	return absolutePath
+}
+
+func (c *Client) prepareRuntimeDirectories() error {
+	if strings.TrimSpace(c.tempDir) == "" {
+		return nil
+	}
+
+	directories := []string{
+		c.tempDir,
+		filepath.Join(c.tempDir, ".home"),
+		filepath.Join(c.tempDir, ".cache"),
+		filepath.Join(c.tempDir, ".parts"),
+	}
+
+	for _, directory := range directories {
+		if err := os.MkdirAll(directory, 0o755); err != nil {
+			return fmt.Errorf("create yt-dlp runtime directory %s: %w", directory, err)
+		}
+	}
+
+	return nil
+}
+
 func (c *Client) GetMetadata(ctx context.Context, url string) (*Metadata, error) {
 	args := c.buildGetMetadataArgs(url, c.ClientType)
 	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
 
-	cmd.Env = append(os.Environ(),
-		"HOME="+c.tempDir,
-		"XDG_CACHE_HOME="+c.tempDir,
-		"TMPDIR="+c.tempDir,
-		"TEMP="+c.tempDir,
-		"TMP="+c.tempDir,
-	)
+	if err := c.prepareRuntimeDirectories(); err != nil {
+		return nil, err
+	}
+	cmd.Env = c.defaultEnvironment()
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, err
@@ -72,14 +106,10 @@ func (c *Client) Download(ctx context.Context, url, formatID string, selectedFor
 	args := c.buildDownloadArgs(url, formatID, selectedFormat)
 	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
 
-	cmd.Env = append(os.Environ(),
-		"HOME="+c.tempDir,
-		"XDG_CACHE_HOME="+c.tempDir,
-		"TMPDIR="+c.tempDir,
-		"TEMP="+c.tempDir,
-		"TMP="+c.tempDir,
-	)
-
+	if err := c.prepareRuntimeDirectories(); err != nil {
+		return nil, err
+	}
+	cmd.Env = c.defaultEnvironment()
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 

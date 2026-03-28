@@ -61,7 +61,7 @@ func Build(ctx context.Context, cfg config.Config) (*Container, error) {
 		cfg.YTDLP.UseJSRuntime,
 	)
 	ytDLPGateway := ytdlp.NewDownloadGateway(ytDLPClient)
-	mediaSender := media.NewSender(log, cfg.Timeouts.FFprobe, cfg.Timeouts.FFmpeg)
+	mediaSender := media.NewSender(log, cfg.Timeouts.FFprobe, cfg.Timeouts.FFmpeg, cfg.Telegram.LocalFileMode)
 	mediaService := media.NewService(log, fileDownloader, ytDLPClient, mediaSender)
 
 	instanceInfo, err := cobaltClient.GetInstanceInfo(ctx)

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/paintingpromisesss/cobalt_bot/internal/adapters/fetch"
 	"github.com/paintingpromisesss/cobalt_bot/internal/adapters/ytdlp"
@@ -145,7 +144,11 @@ func (s *Service) SendCobaltOptions(c tele.Context, statusMsg *tele.Message, dow
 
 		album := make(tele.Album, 0, end-start)
 		for _, result := range downloadResults[start:end] {
-			album = append(album, buildAlbumItem(result.Path, result.Filename, result.DetectedMIME))
+			item, err := s.sender.buildAlbumItem(result.Path, result.Filename, result.DetectedMIME)
+			if err != nil {
+				return fmt.Errorf("prepare album item for telegram: %w", err)
+			}
+			album = append(album, item)
 		}
 
 		if _, err := c.Bot().SendAlbum(user, album); err != nil {
@@ -202,19 +205,5 @@ func cleanupTempFile(log *zap.Logger, filePath string) {
 	}
 	if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
 		log.Warn("failed to remove temp file", zap.String("path", filePath), zap.Error(err))
-	}
-}
-
-func buildAlbumItem(filepath, filename, detectedMIME string) tele.Inputtable {
-	file := tele.FromDisk(filepath)
-	mime := strings.TrimSpace(strings.ToLower(detectedMIME))
-
-	switch {
-	case strings.HasPrefix(mime, "image/"):
-		return &tele.Photo{File: file}
-	case strings.HasPrefix(mime, "video/"):
-		return &tele.Video{File: file, FileName: filename, MIME: detectedMIME, Streaming: true}
-	default:
-		return &tele.Document{File: file, FileName: filename, MIME: detectedMIME}
 	}
 }

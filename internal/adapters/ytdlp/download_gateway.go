@@ -35,29 +35,52 @@ func (g *YtDLPDownloadGateway) GetMetadata(ctx context.Context, url string) (*so
 	}
 
 	for _, format := range meta.Formats {
+		if format.GetRoundedABR() == 0 && format.GetRoundedVBR() == 0 {
+			continue
+		}
 		result.Formats = append(result.Formats, source.YtDLPFormat{
 			FormatID:    format.FormatID,
-			DisplayName: format.GetDisplayName(nil, nil),
+			DisplayName: format.GetDisplayName(),
 			FileSize:    format.FileSize,
 			HasAudio:    format.IsAudio(),
 			HasVideo:    format.IsVideo(),
 		})
 	}
 
+	var bestAudioFormat *Format
+
 	for _, download := range meta.RequestedDownloads {
 		converted := source.YtDLPRequestedDownload{
 			Formats: make([]source.YtDLPFormat, 0, len(download.RequestedFormats)),
 		}
+		bestAudioFormat = download.GetBestAudioFormat()
 		for _, format := range download.RequestedFormats {
 			converted.Formats = append(converted.Formats, source.YtDLPFormat{
 				FormatID:    format.FormatID,
-				DisplayName: format.GetDisplayName(nil, nil),
+				DisplayName: format.GetDisplayName(),
 				FileSize:    format.FileSize,
 				HasAudio:    format.IsAudio(),
 				HasVideo:    format.IsVideo(),
 			})
 		}
 		result.RequestedDownloads = append(result.RequestedDownloads, converted)
+	}
+
+	if bestAudioFormat != nil {
+		for _, format := range meta.Formats {
+			if !format.IsVideo() || format.IsAudio() {
+				continue
+			}
+
+			mergedFormat := MergeFormats(&format, bestAudioFormat)
+			result.Formats = append(result.Formats, source.YtDLPFormat{
+				FormatID:    mergedFormat.FormatID,
+				DisplayName: mergedFormat.GetDisplayName(),
+				FileSize:    mergedFormat.FileSize,
+				HasAudio:    true,
+				HasVideo:    true,
+			})
+		}
 	}
 
 	return result, nil

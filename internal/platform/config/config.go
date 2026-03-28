@@ -4,14 +4,16 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 )
 
 type TelegramConfig struct {
-	BotToken  string
-	BotAPIURL string
+	BotToken      string
+	BotAPIURL     string
+	LocalFileMode bool
 }
 
 type CobaltConfig struct {
@@ -79,6 +81,23 @@ func Load() (Config, error) {
 	if cfg.Telegram.BotToken == "" {
 		return Config{}, errors.New("TG_BOT_TOKEN is required")
 	}
+
+	normalizedTempDir, err := normalizePathEnv(cfg.Storage.TempDir)
+	if err != nil {
+		return Config{}, fmt.Errorf("normalize TG_BOT_TEMP_DIR: %w", err)
+	}
+	cfg.Storage.TempDir = normalizedTempDir
+
+	localFileModeFallback := "0"
+	if !strings.Contains(strings.ToLower(cfg.Telegram.BotAPIURL), "api.telegram.org") {
+		localFileModeFallback = "1"
+	}
+
+	localFileMode, err := parseBoolEnv("TG_BOT_LOCAL_FILE_MODE", localFileModeFallback)
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.Telegram.LocalFileMode = localFileMode
 
 	maxFileBytes, err := parsePositiveInt64Env("TG_BOT_MAX_FILE_BYTES")
 	if err != nil {
@@ -215,4 +234,18 @@ func getEnvDefault(key, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func normalizePathEnv(path string) (string, error) {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return "", nil
+	}
+
+	absolutePath, err := filepath.Abs(trimmed)
+	if err != nil {
+		return "", err
+	}
+
+	return absolutePath, nil
 }
